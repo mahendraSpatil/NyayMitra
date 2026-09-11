@@ -6,3 +6,4 @@ build/
 .dart_tool/
 __pycache__/
 firebase-debug.log
+.venv/
