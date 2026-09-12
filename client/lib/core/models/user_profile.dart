@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum UserRole { advocate, ngo, family }
 
-UserRole? _roleFromString(String? value) {
+/// Shared by UserProfile.fromFirestore and RootRouter's ID-token claim
+/// parsing — one mapping from the raw string to UserRole, used wherever a
+/// role value shows up.
+UserRole? parseUserRole(String? value) {
   switch (value) {
     case 'advocate':
       return UserRole.advocate;
@@ -49,7 +52,7 @@ class UserProfile {
     final data = doc.data() ?? const {};
     return UserProfile(
       uid: doc.id,
-      role: _roleFromString(data['role'] as String?),
+      role: parseUserRole(data['role'] as String?),
       displayName: data['displayName'] as String? ?? '',
       phone: data['phone'] as String?,
       preferredLanguage: data['preferredLanguage'] as String?,
