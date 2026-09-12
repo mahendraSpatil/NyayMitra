@@ -38,7 +38,7 @@ superseded. Do not copy patterns from it.
 ## Repo layout
 
 ```
-app/                    Flutter client
+client/                 Flutter client
   lib/
     core/               models, services, theme, shared widgets
     features/
