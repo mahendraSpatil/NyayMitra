@@ -28,9 +28,14 @@ Do not substitute alternatives without being asked.
 | Frontend | Flutter (Dart) |
 | Realtime data | Firebase Cloud Firestore |
 | Auth | Firebase Auth, role-based |
-| File storage | Firebase Cloud Storage (FIRs, charge sheets) |
+| File storage | Behind a DocumentStorage interface. Cloudinary in v1, Firebase Storage later. |
 | AI service | Python FastAPI microservice |
 | Vector DB | ChromaDB (dev) / Qdrant (target) |
+
+Firebase Cloud Storage requires the Blaze billing plan; we have no payment
+card on file, so it's not in use yet. Auth and Firestore stay on the free
+Spark plan. PDF uploads must be signed server-side by FastAPI — never
+unsigned from the Flutter client.
 
 An older snapshot of this project used Supabase and Postgres. That stack is
 superseded. Do not copy patterns from it.
