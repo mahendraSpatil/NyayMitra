@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    // cases/{caseId}/documents/{docId}/{fileName} — mirrors the Firestore
+    // cases/{caseId}/documents/{docId} doc. Ownership is checked by looking
+    // up the matching Firestore document (cross-service rules), since
+    // Storage objects carry no owner metadata of their own. This depends on
+    // Firestore and Storage being in the same Firebase project — true here,
+    // but flagged since it's a cross-service dependency, not a guess to
+    // silently rely on.
+    match /cases/{caseId}/documents/{docId}/{fileName} {
+      allow read: if signedIn() && (
+        (role() == 'advocate' &&
+          firestore.get(/databases/(default)/documents/cases/$(caseId)).data.advocateUid == request.auth.uid) ||
+        (role() == 'family' &&
+          request.auth.uid in firestore.get(/databases/(default)/documents/cases/$(caseId)).data.familyUids)
+      );
+      allow write: if signedIn() && role() == 'advocate' &&
+        firestore.get(/databases/(default)/documents/cases/$(caseId)).data.advocateUid == request.auth.uid;
+    }
+
+    // Default deny for everything else.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

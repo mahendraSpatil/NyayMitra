@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // users/{uid} — role comes from the ID token custom claim, never this
+    // document. The client can read its own profile but never writes it;
+    // provisioning happens out-of-band via the Admin SDK (backend/scripts/seed.py).
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // cases/{caseId} — advocate owns and can read/write their own cases;
+    // family members listed on a case can read it. NGOs have no case-level
+    // access yet: the schema has no ngo-assignment field on cases/, so
+    // granting broad or guessed access here would be exactly the kind of
+    // guess CLAUDE.md and the working agreement ask us not to make.
+    match /cases/{caseId} {
+      allow read: if signedIn() && (
+        (role() == 'advocate' && resource.data.advocateUid == request.auth.uid) ||
+        (role() == 'family' && request.auth.uid in resource.data.familyUids)
+      );
+      allow create: if signedIn() && role() == 'advocate'
+        && request.resource.data.advocateUid == request.auth.uid;
+      allow update, delete: if signedIn() && role() == 'advocate'
+        && resource.data.advocateUid == request.auth.uid;
+
+      // documents/{docId} and messages/{messageId} subcollections default
+      // deny below (no explicit allow) until their own access rules are
+      // specified — deliberately not guessed here.
+    }
+
+    // tasks/{taskId} — NGO field staff read/write only their own assigned
+    // tasks. Not explicitly specified in CLAUDE.md's rules section, but
+    // required for the NGO Portal (Phase 5) to function at all.
+    match /tasks/{taskId} {
+      allow read, update: if signedIn() && role() == 'ngo'
+        && resource.data.assignedToUid == request.auth.uid;
+      allow create, delete: if false;
+    }
+
+    // Default deny for everything else, subcollections included.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
