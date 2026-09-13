@@ -1,12 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/case.dart';
+import '../models/case_document.dart';
 import '../models/task.dart';
+
+/// The project uses a named Firestore database called "default" (Enterprise
+/// edition), not the classic single database literally named "(default)".
+/// FirebaseFirestore.instance targets "(default)" unconditionally — every
+/// query through it would silently hit an empty, unrelated database.
+/// Matches the databaseId in seed.py and firebase.json.
+const _databaseId = 'default';
 
 /// Typed reads for each portal. Writes come in a later phase.
 class FirestoreService {
   FirestoreService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _firestore = firestore ?? FirebaseFirestore.instanceFor(
+          app: Firebase.app(),
+          databaseId: _databaseId,
+        );
 
   final FirebaseFirestore _firestore;
 
@@ -43,5 +55,28 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => Case.fromFirestore(doc)).toList());
+  }
+
+  /// A single case's live document, for a detail screen reached from a list
+  /// that already has the caseId. Null if the case doesn't exist (or the
+  /// caller can no longer read it).
+  Stream<Case?> caseById(String caseId) {
+    return _firestore
+        .collection('cases')
+        .doc(caseId)
+        .snapshots()
+        .map((doc) => doc.exists ? Case.fromFirestore(doc) : null);
+  }
+
+  /// Documents attached to a case, for the Advocate Console's case detail
+  /// document list.
+  Stream<List<CaseDocument>> caseDocuments(String caseId) {
+    return _firestore
+        .collection('cases')
+        .doc(caseId)
+        .collection('documents')
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => CaseDocument.fromFirestore(doc)).toList());
   }
 }

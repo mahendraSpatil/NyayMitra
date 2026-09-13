@@ -43,6 +43,28 @@ String _docTypeToString(DocType type) {
   }
 }
 
+/// Human-readable labels, kept separate from _docTypeToString (the
+/// Firestore field value) since UI copy and storage keys change for
+/// different reasons.
+extension DocTypeLabel on DocType {
+  String get label {
+    switch (this) {
+      case DocType.fir:
+        return 'FIR';
+      case DocType.chargeSheet:
+        return 'Charge Sheet';
+      case DocType.bailApplication:
+        return 'Bail Application';
+      case DocType.bailOrder:
+        return 'Bail Order';
+      case DocType.remandOrder:
+        return 'Remand Order';
+      case DocType.unknown:
+        return 'Document';
+    }
+  }
+}
+
 class Statute {
   final String code;
   final String? bnsEquivalent;

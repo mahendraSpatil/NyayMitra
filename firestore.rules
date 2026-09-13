@@ -34,9 +34,30 @@ service cloud.firestore {
       allow update, delete: if signedIn() && role() == 'advocate'
         && resource.data.advocateUid == request.auth.uid;
 
-      // documents/{docId} and messages/{messageId} subcollections default
-      // deny below (no explicit allow) until their own access rules are
-      // specified — deliberately not guessed here.
+      // documents/{docId} — same ownership check as the parent case,
+      // since a document has no advocateUid/familyUids of its own to
+      // check directly. get() costs an extra read per request but this
+      // subcollection is read rarely compared to cases/ itself.
+      //
+      // Write access is granted now even though the client can't
+      // actually upload yet (Phase 4's upload sheet is UI-only until a
+      // FastAPI signing endpoint exists) — it's the same ownership rule
+      // cases/{caseId} already has, not a new guess.
+      match /documents/{docId} {
+        function parentCase() {
+          return get(/databases/$(database)/documents/cases/$(caseId)).data;
+        }
+
+        allow read: if signedIn() && (
+          (role() == 'advocate' && parentCase().advocateUid == request.auth.uid) ||
+          (role() == 'family' && request.auth.uid in parentCase().familyUids)
+        );
+        allow create, update, delete: if signedIn() && role() == 'advocate'
+          && parentCase().advocateUid == request.auth.uid;
+      }
+
+      // messages/{messageId} still default-denies below (no explicit
+      // allow) — that's Phase 7's chatbot, not touched yet.
     }
 
     // tasks/{taskId} — NGO field staff read/write only their own assigned
