@@ -72,7 +72,6 @@ class _RootRouterState extends State<RootRouter> {
     // (flutterfire#11949) despite the token being correctly minted — see
     // AuthService.getRefreshedClaims for why that's safe to do here.
     final claims = await _authService.getRefreshedClaims(user);
-    debugPrint('RootRouter: claims after forced refresh for ${user.uid}: $claims');
 
     // The user may have signed out (or into a different account) while
     // the refresh above was in flight. Only apply a response that still

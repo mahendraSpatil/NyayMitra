@@ -65,6 +65,12 @@ class AppTextStyles {
     color: AppColors.inkMuted,
   );
 
+  static const timelineTitle = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.normal,
+    color: AppColors.ink,
+  );
+
   static const body = TextStyle(
     fontSize: 14,
     color: AppColors.ink,

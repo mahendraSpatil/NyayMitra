@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/case_timeline.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/nyaymitra_fab.dart';
 import '../widgets/portal_search_field.dart';
@@ -85,6 +86,26 @@ class _WidgetGalleryState extends State<WidgetGallery> {
               StatusBadge(label: 'Document Review', tone: StatusTone.info),
               StatusBadge(label: 'Bail Hearing Scheduled', tone: StatusTone.warning),
               StatusBadge(label: 'Active Case', tone: StatusTone.success),
+            ],
+          ),
+          const _Section('CaseTimeline'),
+          const CaseTimeline(
+            entries: [
+              CaseTimelineEntry(
+                title: 'Charge Sheet Filed',
+                dateLabel: '12 Aug 2025',
+                done: true,
+              ),
+              CaseTimelineEntry(
+                title: 'Bail Application Submitted',
+                dateLabel: '05 Sep 2025',
+                done: true,
+              ),
+              CaseTimelineEntry(
+                title: 'Hearing on Arguments',
+                dateLabel: 'Oct 24, 2026 (Scheduled)',
+                done: false,
+              ),
             ],
           ),
           const _Section('NyayMitraFab'),
