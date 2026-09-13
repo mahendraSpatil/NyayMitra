@@ -86,6 +86,7 @@ class _WidgetGalleryState extends State<WidgetGallery> {
               StatusBadge(label: 'Document Review', tone: StatusTone.info),
               StatusBadge(label: 'Bail Hearing Scheduled', tone: StatusTone.warning),
               StatusBadge(label: 'Active Case', tone: StatusTone.success),
+              StatusBadge(label: 'High', tone: StatusTone.danger),
             ],
           ),
           const _Section('CaseTimeline'),

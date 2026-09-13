@@ -60,12 +60,16 @@ service cloud.firestore {
       // allow) — that's Phase 7's chatbot, not touched yet.
     }
 
-    // tasks/{taskId} — NGO field staff read/write only their own assigned
-    // tasks. Not explicitly specified in CLAUDE.md's rules section, but
-    // required for the NGO Portal (Phase 5) to function at all.
+    // tasks/{taskId} — NGO field staff read their own assigned tasks and
+    // may toggle completion, nothing else. Field-restricted deliberately:
+    // without hasOnly(), an NGO could rewrite taskType/priority/
+    // description on their own tasks, not just mark them complete.
     match /tasks/{taskId} {
-      allow read, update: if signedIn() && role() == 'ngo'
+      allow read: if signedIn() && role() == 'ngo'
         && resource.data.assignedToUid == request.auth.uid;
+      allow update: if signedIn() && role() == 'ngo'
+        && resource.data.assignedToUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'completedAt']);
       allow create, delete: if false;
     }
 

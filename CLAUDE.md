@@ -116,7 +116,7 @@ cases/{caseId}/messages/{messageId}
 
 tasks/{taskId}
   assignedToUid, caseId
-  taskType, priority, description, completed
+  taskType, priority, description, completed, completedAt
 ```
 
 Security rules must enforce the role split server-side. UI-level routing is not

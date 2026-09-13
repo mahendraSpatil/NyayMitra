@@ -116,6 +116,7 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "priority": "high",
             "description": "Bail-bond translation for the Kumar family",
             "completed": False,
+            "completedAt": None,
         }
     )
 
@@ -127,6 +128,7 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "priority": "medium",
             "description": "Legal aid coordination for Amit Singh",
             "completed": False,
+            "completedAt": None,
         }
     )
 
@@ -135,9 +137,10 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "assignedToUid": ngo_uid,
             "caseId": "case-ramesh-kumar",
             "taskType": "verification_visit",
-            "priority": "medium",
+            "priority": "scheduled",
             "description": "Yerwada Jail verification visit under 436A",
             "completed": False,
+            "completedAt": None,
         }
     )
 

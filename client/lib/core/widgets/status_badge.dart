@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 
-enum StatusTone { info, warning, success }
+enum StatusTone { info, warning, success, danger }
 
 /// Small pill badge used for case stages, task priorities, and similar
 /// short status labels.
@@ -20,6 +20,8 @@ class StatusBadge extends StatelessWidget {
         return (AppColors.warning, AppColors.warningBg);
       case StatusTone.success:
         return (AppColors.success, AppColors.successBg);
+      case StatusTone.danger:
+        return (AppColors.danger, AppColors.dangerBg);
     }
   }
 

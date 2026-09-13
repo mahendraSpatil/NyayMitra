@@ -12,7 +12,8 @@ import '../models/task.dart';
 /// Matches the databaseId in seed.py and firebase.json.
 const _databaseId = 'default';
 
-/// Typed reads for each portal. Writes come in a later phase.
+/// Typed reads for each portal, plus the writes each phase has actually
+/// needed so far.
 class FirestoreService {
   FirestoreService({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instanceFor(
@@ -78,5 +79,18 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => CaseDocument.fromFirestore(doc)).toList());
+  }
+
+  /// NGO Portal completion toggle. Only ever writes completed/completedAt —
+  /// firestore.rules enforces the same restriction server-side via
+  /// affectedKeys().hasOnly(), so this isn't the only thing standing
+  /// between an NGO user and rewriting a task's other fields, just the
+  /// client-side half of it. Lets a rejected write surface as a thrown
+  /// FirebaseException rather than something the caller has to guess at.
+  Future<void> markTaskComplete(String taskId) {
+    return _firestore.collection('tasks').doc(taskId).update({
+      'completed': true,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

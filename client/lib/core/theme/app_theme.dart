@@ -21,9 +21,12 @@ class AppColors {
   static const success = Color(0xFF2E8B57);
   static const successBg = Color(0xFFDCEFE2);
 
-  /// Not a StatusBadge tone — a general-purpose accent for callers that
-  /// want a warm red/orange StatCard icon (e.g. an upcoming hearing date).
+  /// StatusBadge's danger tone (e.g. "High" priority) and a general-purpose
+  /// accent for callers that want a warm red/orange StatCard icon (e.g. an
+  /// upcoming hearing date) — same colour, two roles.
   static const accentRed = Color(0xFFC0472E);
+  static const danger = accentRed;
+  static const dangerBg = Color(0xFFF7E1DC);
 }
 
 /// The app's full type scale, defined once. Widgets reference these
