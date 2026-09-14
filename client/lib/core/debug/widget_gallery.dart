@@ -5,6 +5,7 @@ import '../widgets/case_timeline.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/nyaymitra_fab.dart';
 import '../widgets/portal_search_field.dart';
+import '../widgets/portal_sign_out_button.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/verification_tag.dart';
@@ -117,6 +118,14 @@ class _WidgetGalleryState extends State<WidgetGallery> {
             children: [
               VerificationTag(verified: true, citedSections: ['Sec. 436A CrPC']),
               VerificationTag(verified: false),
+            ],
+          ),
+          const _Section('PortalSignOutButton'),
+          const Row(
+            children: [
+              PortalSignOutButton(locale: 'en'),
+              SizedBox(width: 8),
+              Text('Shows a confirmation dialog before signing out.', style: AppTextStyles.cardSubtitle),
             ],
           ),
           const _Section('NyayMitraFab'),

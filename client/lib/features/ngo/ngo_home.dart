@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/task.dart';
-import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/filter_chip_row.dart';
 import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/portal_search_field.dart';
+import '../../core/widgets/portal_sign_out_button.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 import '../chatbot/chat_sheet.dart';
@@ -95,11 +95,7 @@ class _NgoHomeState extends State<NgoHome> {
         actions: [
           const Icon(Icons.notifications_none, color: AppColors.ink),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () => AuthService().signOut(),
-          ),
+          const PortalSignOutButton(locale: 'en'),
         ],
       ),
       floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
