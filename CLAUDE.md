@@ -71,6 +71,15 @@ study generation, PDF precedent research.
 **NGO Portal** — field task assignment, undertrial verification tracking,
 family outreach, bail-eligibility tracking.
 
+Bail-eligibility tracking is not a count. A number claiming N undertrials
+may be entitled to release, with no way to check the reasoning behind it,
+is exactly what the human-in-the-loop guardrail exists to prevent — this
+is CrPC 436A / BNSS territory, a legal claim, not a UI stat. When this is
+built, tapping it must list which undertrials and why (custody duration
+vs. maximum sentence for the charged sections), not just render a number.
+Until that reasoning trail exists, leave the stat out rather than
+approximate it with a naive count.
+
 **Family Portal** — simplified case status, hearing date tracker,
 plain-language summaries in Marathi and Hindi. Assume every string shown here
 must survive translation via Bhashini. No legal jargon, no English-only labels.
