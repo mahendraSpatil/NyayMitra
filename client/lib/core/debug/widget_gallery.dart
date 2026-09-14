@@ -7,6 +7,7 @@ import '../widgets/nyaymitra_fab.dart';
 import '../widgets/portal_search_field.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/verification_tag.dart';
 
 /// Every core widget, in every state, on one screen. Debug-only — reached
 /// via a floating button RootRouter overlays when kDebugMode is true. Not
@@ -107,6 +108,15 @@ class _WidgetGalleryState extends State<WidgetGallery> {
                 dateLabel: 'Oct 24, 2026 (Scheduled)',
                 done: false,
               ),
+            ],
+          ),
+          const _Section('VerificationTag'),
+          const Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              VerificationTag(verified: true, citedSections: ['Sec. 436A CrPC']),
+              VerificationTag(verified: false),
             ],
           ),
           const _Section('NyayMitraFab'),

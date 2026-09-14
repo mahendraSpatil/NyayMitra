@@ -12,6 +12,7 @@ import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/upload_document_sheet.dart';
+import '../chatbot/chat_sheet.dart';
 import 'family_strings.dart';
 
 class FamilyHome extends StatefulWidget {
@@ -63,11 +64,7 @@ class _FamilyHomeState extends State<FamilyHome> {
               ),
             ],
           ),
-          floatingActionButton: NyayMitraFab(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(strings.chatbotComingSoon)),
-            ),
-          ),
+          floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
           body: StreamBuilder<List<Case>>(
             stream: _casesStream,
             builder: (context, casesSnapshot) {

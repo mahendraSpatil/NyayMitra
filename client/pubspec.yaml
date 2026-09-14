@@ -40,6 +40,7 @@ dependencies:
   provider: ^6.1.5+1
   file_picker: ^12.3.0
   intl: ^0.20.3
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

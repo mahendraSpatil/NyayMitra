@@ -11,6 +11,7 @@ import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/portal_search_field.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
+import '../chatbot/chat_sheet.dart';
 
 const _filterLabels = ['All', 'High Priority', 'Visit Needed', 'Documents'];
 final _dateFormat = DateFormat('MMM d, yyyy');
@@ -101,11 +102,7 @@ class _NgoHomeState extends State<NgoHome> {
           ),
         ],
       ),
-      floatingActionButton: NyayMitraFab(
-        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI chatbot is coming in a later phase.')),
-        ),
-      ),
+      floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
       body: StreamBuilder<List<Task>>(
         stream: _taskStream,
         builder: (context, snapshot) {

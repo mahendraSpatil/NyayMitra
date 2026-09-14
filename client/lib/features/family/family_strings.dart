@@ -12,7 +12,6 @@ const Map<String, Map<String, String>> _familyStringsTable = {
     'portalTitle': 'Family Portal',
     'portalSubtitle': 'Case & Hearing Tracker',
     'signOutTooltip': 'Sign out',
-    'chatbotComingSoon': 'AI chatbot is coming in a later phase.',
     'statNextHearing': 'Next Hearing',
     'statCurrentStage': 'Current Stage',
     'statDocumentsUploaded': 'Documents Uploaded',
@@ -43,7 +42,6 @@ class FamilyStrings {
   String get portalTitle => _t('portalTitle');
   String get portalSubtitle => _t('portalSubtitle');
   String get signOutTooltip => _t('signOutTooltip');
-  String get chatbotComingSoon => _t('chatbotComingSoon');
   String get statNextHearing => _t('statNextHearing');
   String get statCurrentStage => _t('statCurrentStage');
   String get statDocumentsUploaded => _t('statDocumentsUploaded');

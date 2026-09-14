@@ -11,6 +11,7 @@ import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/portal_search_field.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
+import '../chatbot/chat_sheet.dart';
 import 'case_detail_screen.dart';
 
 const _filterLabels = ['All', 'Hearings Today', 'Bail Pending', 'Drafting'];
@@ -109,11 +110,7 @@ class _AdvocateHomeState extends State<AdvocateHome> {
           ),
         ],
       ),
-      floatingActionButton: NyayMitraFab(
-        onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI chatbot is coming in a later phase.')),
-        ),
-      ),
+      floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
       body: StreamBuilder<List<Case>>(
         stream: _docketStream,
         builder: (context, snapshot) {
