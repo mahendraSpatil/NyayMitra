@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/models/case_document.dart';
-import '../../core/theme/app_theme.dart';
+import '../models/case_document.dart';
+import '../theme/app_theme.dart';
 
 const _uploadableDocTypes = [
   DocType.fir,
@@ -12,11 +12,12 @@ const _uploadableDocTypes = [
   DocType.remandOrder,
 ];
 
-/// Upload entry point for a case's documents. The submit action is
-/// deliberately disabled: CLAUDE.md requires PDF uploads to be signed
-/// server-side by FastAPI, and that signing endpoint doesn't exist yet
-/// (it's Phase 7+ backend work). This builds the real UI shell now
-/// without an unsigned client-side upload standing in for it.
+/// Upload entry point for a case's documents, shared by the Advocate
+/// Console and Family Portal. The submit action is deliberately disabled:
+/// CLAUDE.md requires PDF uploads to be signed server-side by FastAPI, and
+/// that signing endpoint doesn't exist yet (it's Phase 7+ backend work).
+/// This builds the real UI shell now without an unsigned client-side
+/// upload standing in for it.
 class UploadDocumentSheet extends StatefulWidget {
   const UploadDocumentSheet({super.key});
 

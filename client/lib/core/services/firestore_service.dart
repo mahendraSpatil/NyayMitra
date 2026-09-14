@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import '../models/case.dart';
 import '../models/case_document.dart';
 import '../models/task.dart';
+import '../models/user_profile.dart';
 
 /// The project uses a named Firestore database called "default" (Enterprise
 /// edition), not the classic single database literally named "(default)".
@@ -79,6 +80,16 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => CaseDocument.fromFirestore(doc)).toList());
+  }
+
+  /// A user's own profile doc — Family Portal reads this for
+  /// preferredLanguage. Null if the doc doesn't exist.
+  Stream<UserProfile?> userProfile(String uid) {
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((doc) => doc.exists ? UserProfile.fromFirestore(doc) : null);
   }
 
   /// NGO Portal completion toggle. Only ever writes completed/completedAt —

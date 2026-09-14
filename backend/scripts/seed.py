@@ -87,7 +87,23 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "stageTone": "warning",
             "nextHearingDate": datetime(2026, 10, 24, tzinfo=timezone.utc),
             "documentCount": 0,
-            "timeline": [],
+            "timeline": [
+                {
+                    "title": "Charge Sheet Filed",
+                    "date": datetime(2025, 8, 12, tzinfo=timezone.utc),
+                    "done": True,
+                },
+                {
+                    "title": "Bail Application Submitted",
+                    "date": datetime(2025, 9, 5, tzinfo=timezone.utc),
+                    "done": True,
+                },
+                {
+                    "title": "Hearing on Arguments",
+                    "date": datetime(2026, 10, 24, tzinfo=timezone.utc),
+                    "done": False,
+                },
+            ],
         }
     )
 

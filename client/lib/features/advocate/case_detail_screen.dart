@@ -6,7 +6,7 @@ import '../../core/models/case_document.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/status_badge.dart';
-import 'upload_document_sheet.dart';
+import '../../core/widgets/upload_document_sheet.dart';
 
 final _dateFormat = DateFormat('MMM d, yyyy');
 
