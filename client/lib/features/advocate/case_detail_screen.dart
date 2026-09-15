@@ -10,19 +10,32 @@ import '../../core/widgets/upload_document_sheet.dart';
 
 final _dateFormat = DateFormat('MMM d, yyyy');
 
-class CaseDetailScreen extends StatelessWidget {
+class CaseDetailScreen extends StatefulWidget {
   const CaseDetailScreen({super.key, required this.caseId});
 
   final String caseId;
 
   @override
-  Widget build(BuildContext context) {
-    final firestoreService = FirestoreService();
+  State<CaseDetailScreen> createState() => _CaseDetailScreenState();
+}
 
+class _CaseDetailScreenState extends State<CaseDetailScreen> {
+  final _firestoreService = FirestoreService();
+
+  // Created once, not inside build() — see the same note on
+  // AdvocateHome/NgoHome/FamilyHome: a fresh Stream instance per build()
+  // makes StreamBuilder tear down and re-subscribe on every rebuild,
+  // including the several rebuilds a route-push animation alone fires.
+  late final Stream<Case?> _caseStream = _firestoreService.caseById(widget.caseId);
+  late final Stream<List<CaseDocument>> _documentsStream =
+      _firestoreService.caseDocuments(widget.caseId);
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Case Details')),
       body: StreamBuilder<Case?>(
-        stream: firestoreService.caseById(caseId),
+        stream: _caseStream,
         builder: (context, caseSnapshot) {
           if (caseSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -55,7 +68,7 @@ class CaseDetailScreen extends StatelessWidget {
               const Text('Documents', style: AppTextStyles.portalTitle),
               const SizedBox(height: 12),
               StreamBuilder<List<CaseDocument>>(
-                stream: firestoreService.caseDocuments(caseId),
+                stream: _documentsStream,
                 builder: (context, docsSnapshot) {
                   if (docsSnapshot.connectionState == ConnectionState.waiting) {
                     return const Padding(
