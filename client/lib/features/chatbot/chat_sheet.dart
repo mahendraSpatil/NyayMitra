@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/models/case_document.dart';
 import '../../core/models/chat_message.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/verification_tag.dart';
@@ -9,7 +10,11 @@ import 'chat_service.dart';
 /// Opens the AI Legal Assistant sheet, reachable via NyayMitraFab on every
 /// portal. A DraggableScrollableSheet, not a fixed-height dialog, so it can
 /// be dragged to expand/collapse like the reference design.
-Future<void> showChatSheet(BuildContext context) {
+///
+/// [caseId] is optional: the FAB is still portal-home-level for Advocate/
+/// NGO (no single "current case" there, unchanged from Phase 7), so only
+/// Family Portal — which always has exactly one case — passes one.
+Future<void> showChatSheet(BuildContext context, {String? caseId}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -19,15 +24,17 @@ Future<void> showChatSheet(BuildContext context) {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
-      builder: (context, scrollController) => _ChatSheetBody(scrollController: scrollController),
+      builder: (context, scrollController) =>
+          _ChatSheetBody(scrollController: scrollController, caseId: caseId),
     ),
   );
 }
 
 class _ChatSheetBody extends StatefulWidget {
-  const _ChatSheetBody({required this.scrollController});
+  const _ChatSheetBody({required this.scrollController, this.caseId});
 
   final ScrollController scrollController;
+  final String? caseId;
 
   @override
   State<_ChatSheetBody> createState() => _ChatSheetBodyState();
@@ -72,13 +79,14 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
     _scrollToBottom();
 
     try {
-      final reply = await _chatService.sendMessage(text);
+      final reply = await _chatService.sendMessage(text, caseId: widget.caseId);
       if (!mounted) return;
       setState(() {
         _messages.add(ChatMessage(
           id: 'local-${DateTime.now().microsecondsSinceEpoch}',
           role: ChatRole.assistant,
           text: reply.text,
+          citedDocuments: reply.citedDocuments,
           verificationStatus:
               reply.verified ? VerificationStatus.verified : VerificationStatus.unverified,
           citedSections: reply.citedSections,
@@ -236,6 +244,13 @@ class _MessageBubble extends StatelessWidget {
               verified: message.verificationStatus == VerificationStatus.verified,
               citedSections: message.citedSections,
             ),
+            if (message.citedDocuments.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Referenced: ${message.citedDocuments.map((d) => docTypeFromApiValue(d.docType).label).join(", ")}',
+                style: AppTextStyles.cardSubtitle,
+              ),
+            ],
           ],
         ],
       ),

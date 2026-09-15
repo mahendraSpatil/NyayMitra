@@ -44,48 +44,56 @@ class _FamilyHomeState extends State<FamilyHome> {
         final locale = resolveFamilyLocale(profileSnapshot.data?.preferredLanguage);
         final strings = FamilyStrings(locale);
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(strings.portalTitle, style: AppTextStyles.portalTitle),
-                Text(strings.portalSubtitle, style: AppTextStyles.portalSubtitle),
-              ],
-            ),
-            actions: [
-              const Icon(Icons.notifications_none, color: AppColors.ink),
-              const SizedBox(width: 8),
-              PortalSignOutButton(locale: locale),
-            ],
-          ),
-          floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
-          body: StreamBuilder<List<Case>>(
-            stream: _casesStream,
-            builder: (context, casesSnapshot) {
-              if (casesSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (casesSnapshot.hasError) {
-                return Center(
+        // The whole Scaffold (not just the body) is built inside the
+        // cases StreamBuilder below: the FAB needs theCase.id to open a
+        // case-scoped chat, and that's only available once the cases
+        // stream has actually delivered data.
+        return StreamBuilder<List<Case>>(
+          stream: _casesStream,
+          builder: (context, casesSnapshot) {
+            if (casesSnapshot.connectionState == ConnectionState.waiting) {
+              return _scaffold(
+                context: context,
+                strings: strings,
+                locale: locale,
+                caseId: null,
+                body: const Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (casesSnapshot.hasError) {
+              return _scaffold(
+                context: context,
+                strings: strings,
+                locale: locale,
+                caseId: null,
+                body: Center(
                   child: Text('${casesSnapshot.error}', style: AppTextStyles.body),
-                );
-              }
+                ),
+              );
+            }
 
-              final cases = casesSnapshot.data ?? const <Case>[];
-              if (cases.isEmpty) {
-                return Center(
-                  child: Text(strings.noCaseFound, style: AppTextStyles.body),
-                );
-              }
+            final cases = casesSnapshot.data ?? const <Case>[];
+            if (cases.isEmpty) {
+              return _scaffold(
+                context: context,
+                strings: strings,
+                locale: locale,
+                caseId: null,
+                body: Center(child: Text(strings.noCaseFound, style: AppTextStyles.body)),
+              );
+            }
 
-              // Single-case layout, matching the design: a family account
-              // maps to one undertrial's case in practice, and nothing
-              // here asks for a multi-case switcher.
-              final theCase = cases.first;
+            // Single-case layout, matching the design: a family account
+            // maps to one undertrial's case in practice, and nothing
+            // here asks for a multi-case switcher.
+            final theCase = cases.first;
 
-              return ListView(
+            return _scaffold(
+              context: context,
+              strings: strings,
+              locale: locale,
+              caseId: theCase.id,
+              body: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   _FamilyStatRow(strings: strings, locale: locale, theCase: theCase),
@@ -97,15 +105,7 @@ class _FamilyHomeState extends State<FamilyHome> {
                   FilledButton.icon(
                     icon: const Icon(Icons.upload_file),
                     label: Text(strings.uploadButtonLabel),
-                    onPressed: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: AppColors.background,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                      ),
-                      builder: (_) => const UploadDocumentSheet(),
-                    ),
+                    onPressed: () => openUploadDocumentSheet(context, caseId: theCase.id),
                   ),
                   const SizedBox(height: 24),
                   Text(strings.caseTimelineSectionHeader, style: AppTextStyles.portalTitle),
@@ -118,11 +118,41 @@ class _FamilyHomeState extends State<FamilyHome> {
                   ),
                   const SizedBox(height: 80),
                 ],
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  Widget _scaffold({
+    required BuildContext context,
+    required FamilyStrings strings,
+    required String locale,
+    required String? caseId,
+    required Widget body,
+  }) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(strings.portalTitle, style: AppTextStyles.portalTitle),
+            Text(strings.portalSubtitle, style: AppTextStyles.portalSubtitle),
+          ],
+        ),
+        actions: [
+          const Icon(Icons.notifications_none, color: AppColors.ink),
+          const SizedBox(width: 8),
+          PortalSignOutButton(locale: locale),
+        ],
+      ),
+      floatingActionButton: NyayMitraFab(
+        onPressed: () => showChatSheet(context, caseId: caseId),
+      ),
+      body: body,
     );
   }
 

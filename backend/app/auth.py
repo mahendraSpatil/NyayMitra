@@ -11,13 +11,22 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
+from firebase_admin import firestore as firebase_firestore
 
 PROJECT_ID = "nyaymitra-ai-92fcc"
 
+# Named Firestore database (Enterprise edition), not the classic single
+# database literally named "(default)". Every Firestore client in this
+# backend must target this explicitly — seed.py already does, and the
+# Flutter client was silently querying the wrong (empty) database for a
+# while before that was caught. Not repeating that mistake here.
+FIRESTORE_DATABASE_ID = "default"
+
 _firebase_app: firebase_admin.App | None = None
+_firestore_db = None
 
 
-def _get_firebase_app() -> firebase_admin.App:
+def get_firebase_app() -> firebase_admin.App:
     global _firebase_app
     if _firebase_app is None:
         if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
@@ -32,6 +41,15 @@ def _get_firebase_app() -> firebase_admin.App:
     return _firebase_app
 
 
+def get_firestore_db():
+    global _firestore_db
+    if _firestore_db is None:
+        _firestore_db = firebase_firestore.client(
+            app=get_firebase_app(), database_id=FIRESTORE_DATABASE_ID
+        )
+    return _firestore_db
+
+
 def install_auth_middleware(app: FastAPI) -> None:
     @app.middleware("http")
     async def verify_firebase_token(request: Request, call_next):
@@ -44,7 +62,7 @@ def install_auth_middleware(app: FastAPI) -> None:
 
         token = header.removeprefix("Bearer ").strip()
         try:
-            decoded = firebase_auth.verify_id_token(token, app=_get_firebase_app())
+            decoded = firebase_auth.verify_id_token(token, app=get_firebase_app())
         except Exception as exc:  # any verification failure is a 401, not a 500
             return JSONResponse(
                 status_code=401,

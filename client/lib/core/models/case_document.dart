@@ -9,6 +9,12 @@ enum DocType {
   unknown,
 }
 
+/// Public wrapper so callers with just the raw API string (e.g. a chat
+/// reply's CitedDocument) can get a human label without re-implementing
+/// this mapping — _docTypeFromString itself stays private since fromMap/
+/// fromFirestore are the normal entry points.
+DocType docTypeFromApiValue(String? value) => _docTypeFromString(value);
+
 DocType _docTypeFromString(String? value) {
   switch (value) {
     case 'fir':
@@ -63,6 +69,12 @@ extension DocTypeLabel on DocType {
         return 'Document';
     }
   }
+
+  /// The raw Firestore field value — same mapping _docTypeToString uses,
+  /// exposed publicly for callers outside this model (the upload flow
+  /// needs to send this to the backend) rather than duplicating the
+  /// switch statement.
+  String get apiValue => _docTypeToString(this);
 }
 
 class Statute {

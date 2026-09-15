@@ -122,6 +122,12 @@ cases/{caseId}/messages/{messageId}
   text, language
   verificationStatus: 'verified' | 'unverified'
   citedSections: []
+  citedDocuments: [{ docId, docType }]  # which of the case's own documents
+    # were in context for this reply — not the same as citedSections
+    # (statute citations, once law grounding exists). Needed once
+    # document_faithfulness verification checks claims against specific
+    # documents, so it's tracked from the first reply onward rather than
+    # retrofitted later.
 
 tasks/{taskId}
   assignedToUid, caseId

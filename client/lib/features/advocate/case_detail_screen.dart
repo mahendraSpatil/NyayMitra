@@ -54,15 +54,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               FilledButton.icon(
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Upload Case Document'),
-                onPressed: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: AppColors.background,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  builder: (_) => const UploadDocumentSheet(),
-                ),
+                onPressed: () => openUploadDocumentSheet(context, caseId: widget.caseId),
               ),
               const SizedBox(height: 24),
               const Text('Documents', style: AppTextStyles.portalTitle),

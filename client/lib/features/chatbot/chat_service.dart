@@ -3,13 +3,21 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
+import '../../core/models/chat_message.dart' show CitedDocument;
+
 /// One assistant reply from POST /chat, or the outcome of a failed call.
 class ChatReply {
-  const ChatReply({required this.text, required this.verified, this.citedSections = const []});
+  const ChatReply({
+    required this.text,
+    required this.verified,
+    this.citedSections = const [],
+    this.citedDocuments = const [],
+  });
 
   final String text;
   final bool verified;
   final List<String> citedSections;
+  final List<CitedDocument> citedDocuments;
 }
 
 /// TODO: this base URL is a dev-only placeholder. Before this ships to any
@@ -19,7 +27,10 @@ class ChatReply {
 const _baseUrl = 'http://localhost:8000';
 
 class ChatService {
-  Future<ChatReply> sendMessage(String message) async {
+  /// [caseId] is optional: the chatbot FAB is still portal-home-level for
+  /// Advocate/NGO (no single "current case" there), so only callers that
+  /// do have one unambiguous case in scope (Family Portal) pass it.
+  Future<ChatReply> sendMessage(String message, {String? caseId}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       throw StateError('sendMessage called with no signed-in user');
@@ -32,7 +43,10 @@ class ChatService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({'message': message}),
+      body: jsonEncode({
+        'message': message,
+        if (caseId != null) 'caseId': caseId,
+      }),
     );
 
     if (response.statusCode != 200) {
@@ -45,6 +59,9 @@ class ChatService {
       verified: json['verificationStatus'] == 'verified',
       citedSections: (json['citedSections'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
+          .toList(),
+      citedDocuments: (json['citedDocuments'] as List<dynamic>? ?? const [])
+          .map((e) => CitedDocument.fromMap(e as Map<String, dynamic>))
           .toList(),
     );
   }
