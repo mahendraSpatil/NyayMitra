@@ -28,3 +28,33 @@ def authorize_case_access(db, case_id: str, uid: str) -> dict:
         raise HTTPException(status_code=403, detail="Not authorized for this case")
 
     return case_data
+
+
+def is_case_manager(case_data: dict, uid: str) -> bool:
+    """True if [uid] is professionally responsible for the case — its
+    advocate, or an NGO worker assigned via ngoUids, or (for a
+    self-managed family case) the family member who created it. Family
+    members who only joined via an invite are NOT managers: they can read
+    the case but not add hearings or mint further invites. Used for
+    hearing CRUD and invite generation, which both need something
+    narrower than "can read this case".
+    """
+    if case_data.get("advocateUid") == uid:
+        return True
+    if uid in (case_data.get("ngoUids") or []):
+        return True
+    if case_data.get("ownerType") == "family" and case_data.get("createdBy") == uid:
+        return True
+    return False
+
+
+def authorize_case_manager(db, case_id: str, uid: str) -> dict:
+    """Like authorize_case_access, but 403s unless [uid] is a manager
+    (see is_case_manager) rather than merely a member with read access —
+    e.g. a family member who joined via invite can read the case but must
+    not be able to add hearings or generate further invites.
+    """
+    case_data = authorize_case_access(db, case_id, uid)
+    if not is_case_manager(case_data, uid):
+        raise HTTPException(status_code=403, detail="Not a manager of this case")
+    return case_data

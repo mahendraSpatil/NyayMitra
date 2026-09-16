@@ -12,6 +12,7 @@ import '../../core/widgets/portal_sign_out_button.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 import '../chatbot/chat_sheet.dart';
+import 'ngo_case_list_screen.dart';
 
 const _filterLabels = ['All', 'High Priority', 'Visit Needed', 'Documents'];
 final _dateFormat = DateFormat('MMM d, yyyy');
@@ -93,6 +94,13 @@ class _NgoHomeState extends State<NgoHome> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.gavel, color: AppColors.ink),
+            tooltip: 'My Cases',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NgoCaseListScreen()),
+            ),
+          ),
           const Icon(Icons.notifications_none, color: AppColors.ink),
           const SizedBox(width: 8),
           const PortalSignOutButton(locale: 'en'),

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
+import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/create_case_sheet.dart';
 import '../../core/widgets/filter_chip_row.dart';
 import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/portal_search_field.dart';
@@ -12,7 +14,6 @@ import '../../core/widgets/portal_sign_out_button.dart';
 import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 import '../chatbot/chat_sheet.dart';
-import 'case_detail_screen.dart';
 
 const _filterLabels = ['All', 'Hearings Today', 'Bail Pending', 'Drafting'];
 final _dateFormat = DateFormat('MMM d, yyyy');
@@ -72,6 +73,14 @@ class _AdvocateHomeState extends State<AdvocateHome> {
         result = result.where((c) => c.stage == 'drafting').toList();
     }
     return result;
+  }
+
+  Future<void> _createCase(BuildContext context) async {
+    final caseId = await openCreateCaseSheet(context);
+    if (caseId == null || !context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: caseId)),
+    );
   }
 
   bool _isToday(DateTime? date) {
@@ -173,7 +182,11 @@ class _AdvocateHomeState extends State<AdvocateHome> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Assigned Cases', style: AppTextStyles.portalTitle),
-                  Text('Sort by date', style: AppTextStyles.cardSubtitle),
+                  TextButton.icon(
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('New Case'),
+                    onPressed: () => _createCase(context),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),

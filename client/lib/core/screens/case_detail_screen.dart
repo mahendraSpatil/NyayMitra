@@ -1,15 +1,26 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/models/case.dart';
-import '../../core/models/case_document.dart';
-import '../../core/services/firestore_service.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/widgets/status_badge.dart';
-import '../../core/widgets/upload_document_sheet.dart';
+import '../models/case.dart';
+import '../models/case_document.dart';
+import '../models/hearing.dart';
+import '../services/firestore_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/hearing_form_sheet.dart';
+import '../widgets/status_badge.dart';
+import '../widgets/upload_document_sheet.dart';
 
 final _dateFormat = DateFormat('MMM d, yyyy');
 
+/// Shared by the Advocate Console and NGO Portal — a case looks the same
+/// either way, but hearing add/edit/remove is only offered to whichever
+/// of advocateUid/ngoUids the signed-in user actually is (a family member
+/// reading the same case, including one who self-created it, only ever
+/// sees the read-only view here). This is a UI convenience only: the
+/// backend independently re-authorizes every hearing mutation itself
+/// (authorize_case_manager), so hiding the button here is not what makes
+/// this safe.
 class CaseDetailScreen extends StatefulWidget {
   const CaseDetailScreen({super.key, required this.caseId});
 
@@ -29,6 +40,14 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   late final Stream<Case?> _caseStream = _firestoreService.caseById(widget.caseId);
   late final Stream<List<CaseDocument>> _documentsStream =
       _firestoreService.caseDocuments(widget.caseId);
+  late final Stream<List<Hearing>> _hearingsStream =
+      _firestoreService.caseHearings(widget.caseId);
+
+  bool _isManager(Case theCase) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    return theCase.advocateUid == uid || theCase.ngoUids.contains(uid);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +64,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           if (theCase == null) {
             return const Center(child: Text('Case not found', style: AppTextStyles.body));
           }
+          final isManager = _isManager(theCase);
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -55,6 +75,56 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Upload Case Document'),
                 onPressed: () => openUploadDocumentSheet(context, caseId: widget.caseId),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Hearings', style: AppTextStyles.portalTitle),
+                  if (isManager)
+                    TextButton.icon(
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add'),
+                      onPressed: () => openHearingFormSheet(context, caseId: widget.caseId),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<Hearing>>(
+                stream: _hearingsStream,
+                builder: (context, hearingsSnapshot) {
+                  if (hearingsSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (hearingsSnapshot.hasError) {
+                    return Text(
+                      'Could not load hearings: ${hearingsSnapshot.error}',
+                      style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.accentRed),
+                    );
+                  }
+                  final hearings = hearingsSnapshot.data ?? const <Hearing>[];
+                  if (hearings.isEmpty) {
+                    return const Text('No hearings recorded yet.', style: AppTextStyles.cardSubtitle);
+                  }
+                  return Column(
+                    children: [
+                      for (final hearing in hearings)
+                        _HearingTile(
+                          hearing: hearing,
+                          onTap: isManager
+                              ? () => openHearingFormSheet(
+                                    context,
+                                    caseId: widget.caseId,
+                                    existing: hearing,
+                                  )
+                              : null,
+                        ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const Text('Documents', style: AppTextStyles.portalTitle),
@@ -130,7 +200,10 @@ class _CaseInfoCard extends StatelessWidget {
             const Divider(height: 28),
             Text('Advocate', style: AppTextStyles.cardSubtitle),
             const SizedBox(height: 2),
-            Text(theCase.advocateName, style: AppTextStyles.cardTitle),
+            Text(
+              theCase.advocateName.isEmpty ? 'No advocate attached' : theCase.advocateName,
+              style: AppTextStyles.cardTitle,
+            ),
             const SizedBox(height: 12),
             Text(
               theCase.nextHearingDate == null
@@ -153,6 +226,51 @@ class _CaseInfoCard extends StatelessWidget {
       case CaseStageTone.info:
         return StatusTone.info;
     }
+  }
+}
+
+class _HearingTile extends StatelessWidget {
+  const _HearingTile({required this.hearing, required this.onTap});
+
+  final Hearing hearing;
+  final VoidCallback? onTap;
+
+  StatusTone get _tone {
+    switch (hearing.status) {
+      case 'completed':
+        return StatusTone.success;
+      case 'cancelled':
+        return StatusTone.danger;
+      case 'adjourned':
+        return StatusTone.warning;
+      default:
+        return StatusTone.info;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        onTap: onTap,
+        leading: const Icon(Icons.gavel, color: AppColors.inkMuted),
+        title: Text(
+          hearing.purpose.isEmpty
+              ? (hearing.date == null ? 'Hearing' : _dateFormat.format(hearing.date!))
+              : hearing.purpose,
+          style: AppTextStyles.cardTitle,
+        ),
+        subtitle: Text(
+          [
+            if (hearing.date != null) _dateFormat.format(hearing.date!),
+            if (hearing.court.isNotEmpty) hearing.court,
+          ].join(' • '),
+          style: AppTextStyles.cardSubtitle,
+        ),
+        trailing: StatusBadge(label: hearing.status, tone: _tone),
+      ),
+    );
   }
 }
 

@@ -8,7 +8,7 @@ provider directly, and no API key ever ships in the Flutter bundle.
 from fastapi import FastAPI
 
 from .auth import install_auth_middleware
-from .routers import chat, documents
+from .routers import cases, chat, documents
 
 app = FastAPI(title="NyayMitra AI Service")
 
@@ -16,3 +16,4 @@ install_auth_middleware(app)
 
 app.include_router(chat.router)
 app.include_router(documents.router)
+app.include_router(cases.router)

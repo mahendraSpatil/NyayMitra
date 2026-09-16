@@ -127,6 +127,16 @@ cases/{caseId}
   be client-assertable: a client that could write its own uid into
   familyUids or ngoUids would be able to grant itself access to any case.
 
+cases/{caseId}/hearings/{hearingId}
+  date, court, purpose
+  status: 'scheduled' | 'completed' | 'adjourned' | 'cancelled'
+  notes
+
+  Backend-mediated only (POST/PUT/DELETE /cases/{caseId}/hearings/...) —
+  every mutation recomputes the parent case's nextHearingDate (the
+  soonest 'scheduled' hearing) in the same operation, so a client write
+  that skipped the recompute would leave it stale.
+
 cases/{caseId}/documents/{docId}
   docType: 'fir' | 'charge_sheet' | 'bail_application' | 'bail_order' | 'remand_order'
   storagePath, uploadedBy, uploadedAt

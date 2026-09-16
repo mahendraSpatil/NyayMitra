@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import '../models/case.dart';
 import '../models/case_document.dart';
+import '../models/hearing.dart';
 import '../models/task.dart';
 import '../models/user_profile.dart';
 
@@ -49,7 +50,9 @@ class FirestoreService {
         (snapshot) => snapshot.docs.map((doc) => Task.fromFirestore(doc)).toList());
   }
 
-  /// Family Portal: cases this family member is attached to via familyUids.
+  /// Family Portal: cases this family member is attached to via familyUids
+  /// — including a case they self-created (the creator is also the case's
+  /// sole familyUids entry) and cases they joined via an invite.
   Stream<List<Case>> familyCases(String familyUid) {
     return _firestore
         .collection('cases')
@@ -57,6 +60,32 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) =>
             snapshot.docs.map((doc) => Case.fromFirestore(doc)).toList());
+  }
+
+  /// NGO Portal: cases this NGO worker is assigned to via ngoUids, soonest
+  /// hearing first. Uses the ngoUids + nextHearingDate composite index.
+  Stream<List<Case>> ngoCases(String ngoUid) {
+    return _firestore
+        .collection('cases')
+        .where('ngoUids', arrayContains: ngoUid)
+        .orderBy('nextHearingDate')
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Case.fromFirestore(doc)).toList());
+  }
+
+  /// A case's hearings, soonest first. Read-only here — adding, editing,
+  /// or removing a hearing goes through CaseService (backend-mediated,
+  /// since it also recomputes the case's nextHearingDate).
+  Stream<List<Hearing>> caseHearings(String caseId) {
+    return _firestore
+        .collection('cases')
+        .doc(caseId)
+        .collection('hearings')
+        .orderBy('date')
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Hearing.fromFirestore(doc)).toList());
   }
 
   /// A single case's live document, for a detail screen reached from a list
