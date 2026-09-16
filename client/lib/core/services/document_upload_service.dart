@@ -58,7 +58,7 @@ class DocumentUploadService {
     }
     final signed = jsonDecode(signResponse.body) as Map<String, dynamic>;
 
-    final secureUrl = await _uploadToCloudinary(signed: signed, file: file);
+    final actualPublicId = await _uploadToCloudinary(signed: signed, file: file);
 
     final confirmResponse = await http.post(
       Uri.parse('$_baseUrl/documents/confirm-upload'),
@@ -67,7 +67,7 @@ class DocumentUploadService {
         'caseId': caseId,
         'docId': signed['docId'],
         'docType': docTypeApiValue,
-        'secureUrl': secureUrl,
+        'publicId': actualPublicId,
       }),
     );
     if (confirmResponse.statusCode != 200) {
@@ -80,6 +80,8 @@ class DocumentUploadService {
     );
   }
 
+  /// Returns Cloudinary's actual assigned public_id (not a URL — see
+  /// confirm-upload's comment on ConfirmUploadRequest for why).
   Future<String> _uploadToCloudinary({
     required Map<String, dynamic> signed,
     required PlatformFile file,
@@ -93,7 +95,11 @@ class DocumentUploadService {
       ..fields['api_key'] = signed['apiKey'] as String
       ..fields['timestamp'] = '${signed['timestamp']}'
       ..fields['signature'] = signed['signature'] as String
-      ..fields['public_id'] = signed['publicId'] as String;
+      ..fields['public_id'] = signed['publicId'] as String
+      // Must exactly match what the backend signed — an authenticated-type
+      // asset is never publicly fetchable by URL, only through a signed
+      // delivery URL the backend mints on demand.
+      ..fields['type'] = signed['type'] as String;
 
     final Uint8List bytes;
     try {
@@ -110,7 +116,10 @@ class DocumentUploadService {
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return json['secure_url'] as String;
+    // Cloudinary's actual assigned public_id, not our pre-upload guess:
+    // for resource_type=raw it appends the file extension, so this can
+    // differ from the publicId we sent in the signed request.
+    return json['public_id'] as String;
   }
 
   String _readableError(http.Response response) {

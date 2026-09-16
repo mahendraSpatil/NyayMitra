@@ -37,6 +37,15 @@ card on file, so it's not in use yet. Auth and Firestore stay on the free
 Spark plan. PDF uploads must be signed server-side by FastAPI — never
 unsigned from the Flutter client.
 
+Cloudinary assets are uploaded as `type: authenticated` — never publicly
+fetchable by URL. Firestore's `storagePath` stores the Cloudinary
+`public_id`, not a URL: a stored URL would be a permanent bearer token for
+that document. Every read (text extraction, viewing) goes through a
+backend endpoint that re-authorizes the caller and mints a fresh,
+short-lived signed delivery URL each time. If a document ever 404s or
+401s, the fix is correct signed-URL generation server-side — never switch
+the asset to public/"upload" delivery to make the error go away.
+
 An older snapshot of this project used Supabase and Postgres. That stack is
 superseded. Do not copy patterns from it.
 
