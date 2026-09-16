@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "cases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ngoUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "nextHearingDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION",
       "fields": [

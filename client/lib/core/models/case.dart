@@ -61,9 +61,19 @@ class Case {
   final String firNumber;
   final String court;
   final String undertrialName;
-  final String advocateUid;
+  // Null for a case with no lawyer attached — a family-owned self-managed
+  // case. Never assume this is set; check ownerType instead of inferring
+  // ownership from whether this happens to be null.
+  final String? advocateUid;
   final String advocateName;
   final List<String> familyUids;
+  final List<String> ngoUids;
+  // Who created the case and what kind of owner they are. Null on
+  // documents written before this field existed — treat as "legacy
+  // advocate case" only when advocateUid is also non-null, never inferred
+  // otherwise.
+  final String? createdBy;
+  final String? ownerType;
   final String stage;
   final String stageLabel;
   final CaseStageTone stageTone;
@@ -76,9 +86,12 @@ class Case {
     this.firNumber = '',
     this.court = '',
     this.undertrialName = '',
-    this.advocateUid = '',
+    this.advocateUid,
     this.advocateName = '',
     this.familyUids = const [],
+    this.ngoUids = const [],
+    this.createdBy,
+    this.ownerType,
     this.stage = '',
     this.stageLabel = '',
     this.stageTone = CaseStageTone.info,
@@ -95,11 +108,16 @@ class Case {
       firNumber: data['firNumber'] as String? ?? '',
       court: data['court'] as String? ?? '',
       undertrialName: data['undertrialName'] as String? ?? '',
-      advocateUid: data['advocateUid'] as String? ?? '',
+      advocateUid: data['advocateUid'] as String?,
       advocateName: data['advocateName'] as String? ?? '',
       familyUids: (data['familyUids'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
           .toList(),
+      ngoUids: (data['ngoUids'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      createdBy: data['createdBy'] as String?,
+      ownerType: data['ownerType'] as String?,
       stage: data['stage'] as String? ?? '',
       stageLabel: data['stageLabel'] as String? ?? '',
       stageTone: _stageToneFromString(data['stageTone'] as String?),
@@ -119,6 +137,9 @@ class Case {
       'advocateUid': advocateUid,
       'advocateName': advocateName,
       'familyUids': familyUids,
+      'ngoUids': ngoUids,
+      'createdBy': createdBy,
+      'ownerType': ownerType,
       'stage': stage,
       'stageLabel': stageLabel,
       'stageTone': _stageToneToString(stageTone),

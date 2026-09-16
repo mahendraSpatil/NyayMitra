@@ -9,10 +9,11 @@ from fastapi import HTTPException
 
 
 def authorize_case_access(db, case_id: str, uid: str) -> dict:
-    """Returns the case's data if [uid] is its advocate or a listed family
-    member. Raises 404 if the case doesn't exist, 403 otherwise — mirrors
-    exactly the read authorization firestore.rules already enforces for
-    direct client reads of cases/{caseId}.
+    """Returns the case's data if [uid] is its advocate, a listed NGO
+    member, or a listed family member. Raises 404 if the case doesn't
+    exist, 403 otherwise — mirrors exactly the read authorization
+    firestore.rules already enforces for direct client reads of
+    cases/{caseId}.
     """
     case_ref = db.collection("cases").document(case_id)
     case_snap = case_ref.get()
@@ -21,8 +22,9 @@ def authorize_case_access(db, case_id: str, uid: str) -> dict:
 
     case_data = case_snap.to_dict() or {}
     is_advocate_owner = case_data.get("advocateUid") == uid
+    is_ngo_member = uid in (case_data.get("ngoUids") or [])
     is_family_member = uid in (case_data.get("familyUids") or [])
-    if not (is_advocate_owner or is_family_member):
+    if not (is_advocate_owner or is_ngo_member or is_family_member):
         raise HTTPException(status_code=403, detail="Not authorized for this case")
 
     return case_data

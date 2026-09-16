@@ -113,12 +113,19 @@ users/{uid}
 
 cases/{caseId}
   firNumber, court, undertrialName
-  advocateUid, advocateName
-  familyUids: []
+  advocateUid (nullable — a self-managed family case has none), advocateName
+  createdBy, ownerType: 'advocate' | 'ngo' | 'family'
+  familyUids: [], ngoUids: []
   stage, stageLabel, stageTone
   nextHearingDate
   documentCount
   timeline: [{ title, date, done }]
+
+  All mutation (creation, hearing changes, invite redemption) is
+  backend-mediated via the Admin SDK — no client writes cases/ fields
+  directly. createdBy/ownerType/familyUids/ngoUids especially must never
+  be client-assertable: a client that could write its own uid into
+  familyUids or ngoUids would be able to grant itself access to any case.
 
 cases/{caseId}/documents/{docId}
   docType: 'fir' | 'charge_sheet' | 'bail_application' | 'bail_order' | 'remand_order'

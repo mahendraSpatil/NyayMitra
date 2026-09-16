@@ -82,6 +82,12 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "advocateUid": advocate_uid,
             "advocateName": "Adv. Rajesh Sharma",
             "familyUids": [family_uid],
+            "ngoUids": [],
+            # Backfilled, not guessed: both seeded cases were created by
+            # this seed script standing in for the advocate, so this is
+            # what actually happened, not an inferred default.
+            "createdBy": advocate_uid,
+            "ownerType": "advocate",
             "stage": "bail",
             "stageLabel": "Bail Stage",
             "stageTone": "warning",
@@ -115,6 +121,9 @@ def seed_demo_data(db, uids: dict[str, str]) -> None:
             "advocateUid": advocate_uid,
             "advocateName": "Adv. Rajesh Sharma",
             "familyUids": [],
+            "ngoUids": [],
+            "createdBy": advocate_uid,
+            "ownerType": "advocate",
             "stage": "document_review",
             "stageLabel": "Document Review",
             "stageTone": "info",

@@ -19,30 +19,38 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // cases/{caseId} — advocate owns and can read/write their own cases;
-    // family members listed on a case can read it. NGOs have no case-level
-    // access yet: the schema has no ngo-assignment field on cases/, so
-    // granting broad or guessed access here would be exactly the kind of
-    // guess CLAUDE.md and the working agreement ask us not to make.
+    // cases/{caseId} — advocate, NGO, and family members listed on the
+    // case can read it. ngoUids/familyUids may be absent on documents that
+    // predate them, hence .get(field, []) instead of a bare field access:
+    // a bare access on a missing key errors the whole rule (fails closed,
+    // but for the wrong reason) instead of just evaluating to "not a
+    // member".
+    //
+    // All mutation — creation, hearing changes, invite generation and
+    // redemption — is backend-mediated via the Admin SDK (bypasses these
+    // rules entirely), same pattern documents/ already uses for uploads
+    // since Task C. ownerType/createdBy/advocateUid/familyUids/ngoUids
+    // must never be client-assertable — a client claiming its own uid
+    // belongs in familyUids or ngoUids is exactly the attack this schema
+    // has to be safe against — so there is no safe partial-write rule to
+    // carve out here. No client writes cases/ directly, full stop.
     match /cases/{caseId} {
       allow read: if signedIn() && (
         (role() == 'advocate' && resource.data.advocateUid == request.auth.uid) ||
+        (role() == 'ngo' && request.auth.uid in resource.data.get('ngoUids', [])) ||
         (role() == 'family' && request.auth.uid in resource.data.familyUids)
       );
-      allow create: if signedIn() && role() == 'advocate'
-        && request.resource.data.advocateUid == request.auth.uid;
-      allow update, delete: if signedIn() && role() == 'advocate'
-        && resource.data.advocateUid == request.auth.uid;
+      allow create, update, delete: if false;
 
-      // documents/{docId} — same ownership check as the parent case,
-      // since a document has no advocateUid/familyUids of its own to
-      // check directly. get() costs an extra read per request but this
+      // documents/{docId} — same membership check as the parent case,
+      // since a document has no advocateUid/familyUids/ngoUids of its own
+      // to check directly. get() costs an extra read per request but this
       // subcollection is read rarely compared to cases/ itself.
       //
-      // Write access is granted now even though the client can't
-      // actually upload yet (Phase 4's upload sheet is UI-only until a
-      // FastAPI signing endpoint exists) — it's the same ownership rule
-      // cases/{caseId} already has, not a new guess.
+      // Confirmed unused as a client write path: Task C's real upload
+      // flow (documents.py confirm_upload) writes via the Admin SDK, same
+      // as cases/ above — so this was already dead capability, now
+      // denied outright instead of granted-but-unused.
       match /documents/{docId} {
         function parentCase() {
           return get(/databases/$(database)/documents/cases/$(caseId)).data;
@@ -50,14 +58,46 @@ service cloud.firestore {
 
         allow read: if signedIn() && (
           (role() == 'advocate' && parentCase().advocateUid == request.auth.uid) ||
+          (role() == 'ngo' && request.auth.uid in parentCase().get('ngoUids', [])) ||
           (role() == 'family' && request.auth.uid in parentCase().familyUids)
         );
-        allow create, update, delete: if signedIn() && role() == 'advocate'
-          && parentCase().advocateUid == request.auth.uid;
+        allow create, update, delete: if false;
+      }
+
+      // hearings/{hearingId} — new in this phase, lands functionally in a
+      // later commit. Read-only to clients now so the rule is in place
+      // before the feature is; writes (add/edit/remove a hearing) are
+      // backend-mediated because adding a hearing also recomputes the
+      // parent case's nextHearingDate in the same operation, and that
+      // recompute must not be something a client can skip or fake.
+      match /hearings/{hearingId} {
+        function parentCase() {
+          return get(/databases/$(database)/documents/cases/$(caseId)).data;
+        }
+
+        allow read: if signedIn() && (
+          (role() == 'advocate' && parentCase().advocateUid == request.auth.uid) ||
+          (role() == 'ngo' && request.auth.uid in parentCase().get('ngoUids', [])) ||
+          (role() == 'family' && request.auth.uid in parentCase().familyUids)
+        );
+        allow write: if false;
       }
 
       // messages/{messageId} still default-denies below (no explicit
       // allow) — that's Phase 7's chatbot, not touched yet.
+    }
+
+    // invites/{inviteId} — new in this phase, lands functionally in a
+    // later commit. Entirely backend-mediated, both directions: FastAPI
+    // returns a freshly generated code directly in its HTTP response (the
+    // only place a code is ever transmitted) and validates+redeems a
+    // code with the Admin SDK. There is no legitimate client read of this
+    // collection — even letting a case owner "read their own invite back"
+    // would mean the code sits in a place Firestore's normal client read
+    // path can reach, which is more exposure than a bearer-secret code
+    // shared over WhatsApp needs. Deny both directions, no exceptions.
+    match /invites/{inviteId} {
+      allow read, write: if false;
     }
 
     // tasks/{taskId} — NGO field staff read their own assigned tasks and
