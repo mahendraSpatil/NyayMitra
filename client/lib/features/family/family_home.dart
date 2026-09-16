@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
 import '../../core/models/user_profile.dart';
+import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/case_timeline.dart';
@@ -13,7 +14,9 @@ import '../../core/widgets/stat_card.dart';
 import '../../core/widgets/status_badge.dart';
 import '../../core/widgets/upload_document_sheet.dart';
 import '../chatbot/chat_sheet.dart';
+import 'create_own_case_sheet.dart';
 import 'family_strings.dart';
+import 'redeem_invite_sheet.dart';
 
 class FamilyHome extends StatefulWidget {
   const FamilyHome({super.key});
@@ -79,7 +82,31 @@ class _FamilyHomeState extends State<FamilyHome> {
                 strings: strings,
                 locale: locale,
                 caseId: null,
-                body: Center(child: Text(strings.noCaseFound, style: AppTextStyles.body)),
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(strings.noCaseFound, style: AppTextStyles.body),
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: () async {
+                            await openRedeemInviteSheet(context, strings: strings);
+                          },
+                          child: Text(strings.joinCaseButtonLabel),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: () async {
+                            await openCreateOwnCaseSheet(context, strings: strings);
+                          },
+                          child: Text(strings.createOwnCaseButtonLabel),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               );
             }
 
@@ -87,6 +114,7 @@ class _FamilyHomeState extends State<FamilyHome> {
             // maps to one undertrial's case in practice, and nothing
             // here asks for a multi-case switcher.
             final theCase = cases.first;
+            final isSelfManaged = theCase.ownerType == 'family' && theCase.createdBy == _uid;
 
             return _scaffold(
               context: context,
@@ -107,6 +135,25 @@ class _FamilyHomeState extends State<FamilyHome> {
                     label: Text(strings.uploadButtonLabel),
                     onPressed: () => openUploadDocumentSheet(context, caseId: theCase.id),
                   ),
+                  if (isSelfManaged) ...[
+                    const SizedBox(height: 12),
+                    // Only for a case this family user created themselves
+                    // — hearings and invites for an advocate's case are
+                    // the advocate's to manage, this is the "no lawyer
+                    // yet" path from CreateOwnCaseSheet catching up to
+                    // itself: someone has to be able to add hearings and
+                    // invite the rest of the family, and here nobody but
+                    // the creator can be that person.
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.event_note),
+                      label: const Text('Manage Hearings & Invites'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => CaseDetailScreen(caseId: theCase.id),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Text(strings.caseTimelineSectionHeader, style: AppTextStyles.portalTitle),
                   const SizedBox(height: 12),

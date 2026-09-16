@@ -158,6 +158,22 @@ cases/{caseId}/messages/{messageId}
 tasks/{taskId}
   assignedToUid, caseId
   taskType, priority, description, completed, completedAt
+
+invites/{inviteId}
+  code, caseId, roleToGrant (always 'family' — see below), createdBy
+  createdAt, expiresAt (capped at 24h), redeemedBy, redeemedAt
+
+  Entirely backend-mediated (POST /cases/{caseId}/invites to generate,
+  POST /invites/redeem to redeem) — firestore.rules denies all client
+  access. Redemption is a single Firestore transaction (lookup, expiry
+  and single-use checks, and the familyUids write all atomic together) so
+  two concurrent redemptions of the same code can't both succeed. Only a
+  case manager (its advocate, an assigned NGO worker, or a self-managed
+  family case's creator) can generate a code, capped at 5/hour/case.
+  Every redemption attempt — success or failure — is logged to
+  inviteAttempts/{attemptId} (codeHash, caseId, attemptedBy, attemptedAt,
+  outcome), also backend-only, storing a hash of the code rather than the
+  code itself.
 ```
 
 Security rules must enforce the role split server-side. UI-level routing is not

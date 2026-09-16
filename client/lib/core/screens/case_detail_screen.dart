@@ -1,15 +1,19 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../models/case.dart';
 import '../models/case_document.dart';
 import '../models/hearing.dart';
 import '../services/firestore_service.dart';
+import '../services/invite_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/hearing_form_sheet.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/upload_document_sheet.dart';
+
+final _dateTimeFormat = DateFormat('MMM d, h:mm a');
 
 final _dateFormat = DateFormat('MMM d, yyyy');
 
@@ -32,6 +36,7 @@ class CaseDetailScreen extends StatefulWidget {
 
 class _CaseDetailScreenState extends State<CaseDetailScreen> {
   final _firestoreService = FirestoreService();
+  final _inviteService = InviteService();
 
   // Created once, not inside build() — see the same note on
   // AdvocateHome/NgoHome/FamilyHome: a fresh Stream instance per build()
@@ -43,10 +48,63 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   late final Stream<List<Hearing>> _hearingsStream =
       _firestoreService.caseHearings(widget.caseId);
 
+  // Mirrors backend/app/services/case_access.py's is_case_manager exactly
+  // — the advocate, an assigned NGO worker, or (for a self-managed
+  // family case) whoever created it. A family member who only joined via
+  // invite is a member, not a manager, same as on the backend.
   bool _isManager(Case theCase) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return false;
-    return theCase.advocateUid == uid || theCase.ngoUids.contains(uid);
+    if (theCase.advocateUid == uid) return true;
+    if (theCase.ngoUids.contains(uid)) return true;
+    if (theCase.ownerType == 'family' && theCase.createdBy == uid) return true;
+    return false;
+  }
+
+  Future<void> _generateInvite(BuildContext context) async {
+    try {
+      final invite = await _inviteService.generateInvite(widget.caseId);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Invite Code'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Share this code with a family member. It works once and '
+                'stops working after it\'s used or after it expires.',
+                style: AppTextStyles.cardSubtitle,
+              ),
+              const SizedBox(height: 16),
+              SelectableText(invite.code, style: AppTextStyles.portalTitle),
+              const SizedBox(height: 8),
+              Text(
+                'Expires ${_dateTimeFormat.format(invite.expiresAt.toLocal())}',
+                style: AppTextStyles.cardSubtitle,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Clipboard.setData(ClipboardData(text: invite.code)),
+              child: const Text('Copy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not generate an invite: $e')),
+      );
+    }
   }
 
   @override
@@ -76,6 +134,14 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                 label: const Text('Upload Case Document'),
                 onPressed: () => openUploadDocumentSheet(context, caseId: widget.caseId),
               ),
+              if (isManager) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.person_add_alt),
+                  label: const Text('Invite Family Member'),
+                  onPressed: () => _generateInvite(context),
+                ),
+              ],
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

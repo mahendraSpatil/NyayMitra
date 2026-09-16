@@ -28,6 +28,19 @@ const Map<String, Map<String, String>> _familyStringsTable = {
     'uploadButtonLabel': 'Upload Case Document / ID Proof',
     'caseTimelineSectionHeader': 'Case Timeline',
     'noCaseFound': 'No case found.',
+    'joinCaseButtonLabel': 'Have an invite code? Join a case',
+    'redeemInviteDialogTitle': 'Join a Case',
+    'redeemInviteFieldLabel': 'Enter invite code',
+    'redeemInviteSubmitLabel': 'Join',
+    'createOwnCaseButtonLabel': "Don't have a lawyer yet? Track a case yourself",
+    'createOwnCaseTitle': 'Track a Case Yourself',
+    'createOwnCaseDisclaimer':
+        'This is a personal record for your own use, not an official court '
+            'record — NyayMitra does not pull this from any court system. It '
+            "only shows what you enter. If you get a lawyer later, they can "
+            'send you an invite code to switch to their case record instead.',
+    'createOwnCaseNameFieldLabel': "Undertrial's name",
+    'createOwnCaseSubmitLabel': 'Start Tracking',
   },
   'mr': {},
   'hi': {},
@@ -53,6 +66,15 @@ class FamilyStrings {
   String get uploadButtonLabel => _t('uploadButtonLabel');
   String get caseTimelineSectionHeader => _t('caseTimelineSectionHeader');
   String get noCaseFound => _t('noCaseFound');
+  String get joinCaseButtonLabel => _t('joinCaseButtonLabel');
+  String get redeemInviteDialogTitle => _t('redeemInviteDialogTitle');
+  String get redeemInviteFieldLabel => _t('redeemInviteFieldLabel');
+  String get redeemInviteSubmitLabel => _t('redeemInviteSubmitLabel');
+  String get createOwnCaseButtonLabel => _t('createOwnCaseButtonLabel');
+  String get createOwnCaseTitle => _t('createOwnCaseTitle');
+  String get createOwnCaseDisclaimer => _t('createOwnCaseDisclaimer');
+  String get createOwnCaseNameFieldLabel => _t('createOwnCaseNameFieldLabel');
+  String get createOwnCaseSubmitLabel => _t('createOwnCaseSubmitLabel');
 }
 
 /// Supported locale codes, in the order CLAUDE.md lists them.
