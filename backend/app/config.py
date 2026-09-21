@@ -15,8 +15,13 @@ class Settings:
     cloudinary_api_secret = os.environ.get("CLOUDINARY_API_SECRET", "")
     # Used only by tests/test_invites.py to sign in as the seeded test
     # accounts via the Identity Toolkit REST API — not read by the app
-    # itself at request time.
+    # itself at request time. Removed once the Firebase migration reaches
+    # step 6.
     firebase_web_api_key = os.environ.get("FIREBASE_WEB_API_KEY", "")
+    # postgresql+psycopg://... — same var name Neon expects, so prod is
+    # just a different value here. Local dev points at a Postgres running
+    # in Docker (see .env's comment for the exact command/port).
+    database_url = os.environ.get("DATABASE_URL", "")
 
     def require_cloudinary(self) -> None:
         if not (self.cloudinary_cloud_name and self.cloudinary_api_key and self.cloudinary_api_secret):
