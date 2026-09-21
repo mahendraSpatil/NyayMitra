@@ -22,6 +22,8 @@ class Settings:
     # just a different value here. Local dev points at a Postgres running
     # in Docker (see .env's comment for the exact command/port).
     database_url = os.environ.get("DATABASE_URL", "")
+    # Signs access + refresh tokens. A real secret — see app/security/tokens.py.
+    jwt_secret = os.environ.get("JWT_SECRET", "")
 
     def require_cloudinary(self) -> None:
         if not (self.cloudinary_cloud_name and self.cloudinary_api_key and self.cloudinary_api_secret):
