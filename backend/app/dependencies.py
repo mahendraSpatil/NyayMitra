@@ -86,13 +86,21 @@ def require_case_manager(
     return current_user
 
 
-def require_case_member_from_body(body_field: str = "caseId"):
+def require_case_member_from_body(body_field: str = "caseId", *, optional: bool = False):
     """Factory, not a bare dependency: /chat, /documents/sign-upload, and
     /documents/confirm-upload all take their case id as a JSON body
     field rather than a path segment, so there's no {case_id} for
     FastAPI's normal path-param resolution to hand us. Reads the body
     directly off the request instead — still a real Depends(), still
     discoverable by the route-coverage test, just sourced differently.
+
+    optional=True is /chat's case: caseId is allowed to be entirely
+    absent (the chatbot FAB is portal-home-level for Advocate/NGO, with
+    no single case in scope), in which case this only requires a valid
+    signed-in user and skips the membership check — there is no case to
+    check membership against. It is never optional for sign-upload /
+    confirm-upload, which always need a real case to attach the document
+    to.
     """
 
     async def _dependency(
@@ -102,8 +110,13 @@ def require_case_member_from_body(body_field: str = "caseId"):
     ) -> CurrentUser:
         try:
             body = await request.json()
-            raw_case_id = body[body_field]
         except Exception:
+            body = {}
+
+        raw_case_id = body.get(body_field)
+        if raw_case_id is None:
+            if optional:
+                return current_user
             raise HTTPException(status_code=422, detail=f"Missing '{body_field}' in request body")
 
         try:

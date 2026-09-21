@@ -50,20 +50,25 @@ def get_firestore_db():
     return _firestore_db
 
 
-# Routes authenticated by the new Postgres/JWT system (app/dependencies.py)
-# instead of Firebase, or genuinely public — this middleware must not
-# demand a Firebase token for any of them. /auth/login and /auth/refresh
-# in particular have to be reachable with no token at all: they're how a
-# client gets one. Exact-match, not a prefix scan, so a future route
-# never becomes exempt by accident just because its path happens to start
-# the same way.
-_EXEMPT_PATHS = {"/auth/login", "/auth/refresh", "/auth/logout", "/me", "/health"}
+# Genuinely public, outside any versioned namespace.
+_EXEMPT_PATHS = {"/health"}
+
+# Everything under /api/v2 — including /api/v2/auth/login itself, which
+# has to be reachable with no token at all; it's how a client gets one —
+# is authenticated by the new Postgres/JWT system (app/dependencies.py's
+# get_current_user and the dependencies built on it), never by this
+# Firebase middleware. A prefix check is the right tool here, not
+# exact-match: /api/v2 is a real namespace boundary every route in it is
+# deliberately inside, not an accident of similar-looking paths the way a
+# bare-path prefix scan would risk.
+_EXEMPT_PREFIX = "/api/v2/"
 
 
 def install_auth_middleware(app: FastAPI) -> None:
     @app.middleware("http")
     async def verify_firebase_token(request: Request, call_next):
-        if request.url.path in _EXEMPT_PATHS:
+        path = request.url.path
+        if path in _EXEMPT_PATHS or path.startswith(_EXEMPT_PREFIX):
             return await call_next(request)
 
         header = request.headers.get("authorization")
