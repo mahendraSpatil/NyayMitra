@@ -17,12 +17,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from ...db.base import get_db
 from ...db.models import CaseMember
-from ...security.ws_auth import (
-    CLOSE_NOT_AUTHORIZED,
-    CLOSE_TOKEN_EXPIRED,
-    authenticate_websocket,
-    websocket_authenticated,
-)
+from ...security.ws_auth import CLOSE_NOT_AUTHORIZED, CLOSE_TOKEN_EXPIRED, websocket_authenticated
 from ...services.v2.connections import manager
 
 router = APIRouter()
@@ -40,9 +35,11 @@ async def _close_when_expired(websocket: WebSocket, expires_at) -> None:
 @router.websocket("/ws/cases/{case_id}")
 @websocket_authenticated
 async def case_socket(websocket: WebSocket, case_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
-    auth = await authenticate_websocket(websocket)
-    if auth is None:
-        return
+    # websocket_authenticated (app/security/ws_auth.py) already ran the
+    # handshake before this body executes at all — that's what makes it
+    # the enforcing mechanism rather than a marker something else has to
+    # remember to call. auth is guaranteed set by the time we're here.
+    auth = websocket.state.auth
 
     member = db.get(CaseMember, {"case_id": case_id, "user_id": auth.user.id})
     if member is None:
@@ -68,9 +65,7 @@ async def case_socket(websocket: WebSocket, case_id: uuid.UUID, db: Session = De
 @router.websocket("/ws/me")
 @websocket_authenticated
 async def me_socket(websocket: WebSocket) -> None:
-    auth = await authenticate_websocket(websocket)
-    if auth is None:
-        return
+    auth = websocket.state.auth
 
     manager.subscribe_user(auth.user.id, websocket)
     expiry_task = asyncio.create_task(_close_when_expired(websocket, auth.expires_at))

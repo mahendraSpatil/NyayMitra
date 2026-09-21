@@ -18,6 +18,7 @@ an HTTP route without get_current_user does.
 """
 
 import asyncio
+import functools
 import json
 import uuid
 from dataclasses import dataclass
@@ -48,17 +49,36 @@ class AuthenticatedConnection:
 
 
 def websocket_authenticated(handler):
-    """Marks a WebSocket endpoint as performing the handshake via
-    authenticate_websocket() — see module docstring for why this exists
-    instead of a Depends()-based check. Purely a marker; it doesn't wrap
-    or change the function's behavior, so forgetting to actually call
-    authenticate_websocket() inside a decorated function is still a bug
-    the decorator alone can't catch — it only proves intent, the way a
-    type annotation does. What it does catch is the more common failure:
-    a new WS route added without even trying.
+    """Wraps a WebSocket endpoint so it CANNOT run without a successful
+    handshake — this is the enforcing mechanism, not a promise that the
+    handler calls authenticate_websocket() itself somewhere in its body.
+    The wrapper always calls it first; the wrapped handler only ever runs
+    after that succeeds, with the result available as websocket.state.auth
+    (an AuthenticatedConnection) — set on Starlette's own per-connection
+    .state object, the same pattern app/auth.py already uses for HTTP via
+    request.state.user, rather than adding a new parameter to the
+    handler's signature that FastAPI's own route introspection wouldn't
+    know how to resolve.
+
+    functools.wraps matters here beyond the usual __name__/__doc__
+    copying: it sets __wrapped__, which inspect.signature() (what
+    FastAPI's route registration actually calls) follows by default — so
+    FastAPI still sees the original handler's real parameters (case_id,
+    db: Session = Depends(get_db), ...) for routing and dependency
+    injection, even though the function actually bound to the route is
+    this wrapper.
     """
-    handler.__nyaymitra_ws_authenticated__ = True
-    return handler
+
+    @functools.wraps(handler)
+    async def wrapper(websocket: WebSocket, *args, **kwargs):
+        auth = await authenticate_websocket(websocket)
+        if auth is None:
+            return  # already closed, with a reason code — nothing left to do
+        websocket.state.auth = auth
+        return await handler(websocket, *args, **kwargs)
+
+    wrapper.__nyaymitra_ws_authenticated__ = True
+    return wrapper
 
 
 async def authenticate_websocket(
