@@ -1,0 +1,21 @@
+# Local dev Postgres — `docker compose up -d` gets every teammate the
+# identical database the Firebase -> Postgres migration (NyayMitra.md)
+# targets. Port 5433, not the default 5432: keep this if your own machine
+# already has something else bound to 5432, so this never collides with
+# an unrelated project's container. Matches backend/.env.example's
+# DATABASE_URL placeholder exactly — change one, change the other.
+services:
+  postgres:
+    image: postgres:16
+    container_name: nyaymitra-postgres
+    environment:
+      POSTGRES_USER: nyaymitra
+      POSTGRES_PASSWORD: nyaymitra_dev
+      POSTGRES_DB: nyaymitra
+    ports:
+      - "5433:5432"
+    volumes:
+      - nyaymitra-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  nyaymitra-postgres-data:
