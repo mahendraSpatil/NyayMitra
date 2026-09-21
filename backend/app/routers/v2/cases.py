@@ -5,6 +5,7 @@ from ...db.base import get_db
 from ...db.models import Case, CaseMember
 from ...dependencies import CurrentUser, get_current_user
 from ...models.v2.case import CreateCaseRequest, CreateCaseResponse
+from ...services.v2.connections import manager as ws_manager
 
 router = APIRouter()
 
@@ -50,4 +51,5 @@ def create_case(
     db.add(CaseMember(case_id=case.id, user_id=current_user.id, role=current_user.role, is_manager=True))
 
     db.commit()
+    ws_manager.broadcast_user_sync(current_user.id, {"type": "cases_changed"})
     return CreateCaseResponse(caseId=str(case.id))

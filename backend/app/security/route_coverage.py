@@ -1,14 +1,22 @@
 """Default-deny route coverage: every registered route must either be on
-the explicit public allowlist or carry an authorization dependency
-somewhere in its resolved dependency tree. Once Firestore rules are gone
-(migration step 6), this check — not developer discipline — is what
-stops a new case-scoped route from shipping unauthorized by accident.
+the explicit public allowlist or carry recognized authorization. Once
+Firestore rules are gone (migration step 6), this check — not developer
+discipline — is what stops a new case-scoped route (HTTP or WebSocket)
+from shipping unauthorized by accident.
 
-Only fastapi.routing.APIRoute instances are examined. FastAPI's own
-auto-generated /openapi.json, /docs, /docs/oauth2-redirect, and /redoc
-are plain Starlette Route objects with no .dependant — they're framework
-plumbing, not a route this project wrote, and are excluded on that basis
-rather than added to the allowlist.
+Two kinds of route, two ways of recognizing authorization on them:
+  - fastapi.routing.APIRoute (ordinary HTTP): checked by walking the
+    route's resolved Dependant tree for get_current_user, since every
+    dependency in app/dependencies.py is built on top of it.
+  - fastapi.routing.APIWebSocketRoute: WebSocket auth can't live in a
+    Depends() at all here — see app/security/ws_auth.py's docstring for
+    why — so it's checked for the @websocket_authenticated marker
+    instead. See _has_ws_auth_marker below.
+
+FastAPI's own auto-generated /openapi.json, /docs, /docs/oauth2-redirect,
+and /redoc are plain Starlette Route objects, neither of the above —
+they're framework plumbing, not a route this project wrote, and are
+excluded on that basis rather than added to the allowlist.
 
 Routes registered via app.include_router() don't appear as APIRoute
 objects directly in app.routes — FastAPI 0.141 wraps each included
@@ -27,7 +35,7 @@ itself would actually serve, not just an approximation of it.
 
 from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
-from fastapi.routing import APIRoute, iter_route_contexts
+from fastapi.routing import APIRoute, APIWebSocketRoute, iter_route_contexts
 
 from ..dependencies import get_current_user
 
@@ -87,13 +95,28 @@ def _has_auth_dependency(dependant: Dependant) -> bool:
 
 
 def find_unprotected_routes(app: FastAPI, *, ignore_legacy: bool = True) -> list[str]:
-    """Returns "METHOD /path" for every route that is neither on the
-    public allowlist nor carrying a recognized authorization dependency.
-    Empty means the whole app is covered.
+    """Returns "METHOD /path" (or "WEBSOCKET /path") for every route that
+    is neither on the public allowlist nor carrying recognized
+    authorization. Empty means the whole app is covered.
     """
     violations: list[str] = []
     for route_context in iter_route_contexts(app.routes):
         route = route_context.original_route
+
+        if isinstance(route, APIWebSocketRoute):
+            # route_context.path is empty for a WebSocket route in this
+            # FastAPI version — unlike the APIRoute case below, the
+            # effective post-prefix path isn't surfaced there for WS
+            # routes, only the router's own unprefixed template
+            # (route.path) is reliably available. Cosmetic only: it
+            # doesn't affect the check itself, since WebSocket routes
+            # are never allowlisted by path (see _has_ws_auth_marker) —
+            # only reported paths in a violation message are less
+            # precise than the HTTP case's.
+            if not _has_ws_auth_marker(route):
+                violations.append(f"WEBSOCKET {route.path}")
+            continue
+
         if not isinstance(route, APIRoute):
             continue
         # route_context.path (not route.path / original_route.path) is
@@ -119,3 +142,13 @@ def find_unprotected_routes(app: FastAPI, *, ignore_legacy: bool = True) -> list
             if not _has_auth_dependency(route.dependant):
                 violations.append(f"{method} {path}")
     return violations
+
+
+def _has_ws_auth_marker(route: APIWebSocketRoute) -> bool:
+    # WebSocket routes can't be checked the HTTP way (see this module's
+    # docstring and app/security/ws_auth.py): the handshake happens
+    # inside the endpoint body, after accept(), reading the first
+    # message — there's no Dependant tree for it the way get_current_user
+    # shows up for HTTP. @websocket_authenticated (ws_auth.py) marks the
+    # endpoint function directly instead; this checks for that marker.
+    return getattr(route.endpoint, "__nyaymitra_ws_authenticated__", False) is True

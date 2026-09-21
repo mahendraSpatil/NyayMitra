@@ -8,6 +8,7 @@ from ...db.base import get_db
 from ...db.models import Task
 from ...dependencies import CurrentUser, require_task_owner
 from ...models.v2.task import TaskCompleteResponse
+from ...services.v2.connections import manager as ws_manager
 
 router = APIRouter()
 
@@ -30,4 +31,5 @@ def complete_task(
     task.completed = True
     task.completed_at = datetime.now(timezone.utc)
     db.commit()
+    ws_manager.broadcast_user_sync(current_user.id, {"type": "tasks_changed"})
     return TaskCompleteResponse(taskId=str(task.id), completed=task.completed, completedAt=task.completed_at)

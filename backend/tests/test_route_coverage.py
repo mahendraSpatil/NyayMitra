@@ -1,20 +1,26 @@
 """Default-deny route coverage — see app/security/route_coverage.py.
 
-test_coverage_check_is_not_vacuous exists because a check that always
+test_coverage_check_is_not_vacuous (and its WebSocket counterpart,
+test_ws_coverage_check_is_not_vacuous) exist because a check that always
 passes is worse than no check: it looks like protection without being
-any. It adds a real, deliberately unprotected route to the actual app
+any. Each adds a real, deliberately unprotected route to the actual app
 (via a fixture, removed again in teardown) and asserts the checker
 catches it — proof this suite would fail if a genuinely unprotected
-route ever shipped, not just today but on every future run.
+route ever shipped, not just today but on every future run. The two are
+separate tests, not one parametrized over both, because they exercise
+two different detection mechanisms (a Dependant-tree walk for HTTP vs. a
+function-attribute marker for WebSocket — see route_coverage.py) that
+could each go vacuous independently of the other.
 """
 
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, WebSocket
 
 from app.main import app
 from app.security.route_coverage import find_unprotected_routes
 
 THROWAWAY_PATH = "/__throwaway_unprotected_route_for_test__"
+THROWAWAY_WS_PATH = "/__throwaway_unprotected_ws_route_for_test__"
 
 
 @pytest.fixture
@@ -53,6 +59,36 @@ def unprotected_throwaway_route():
 def test_coverage_check_is_not_vacuous(unprotected_throwaway_route):
     violations = find_unprotected_routes(app)
     assert f"GET {unprotected_throwaway_route}" in violations
+
+
+@pytest.fixture
+def unprotected_throwaway_ws_route():
+    """Same proof as unprotected_throwaway_route, for the WebSocket path
+    (app/security/route_coverage.py's _has_ws_auth_marker) — a WS route
+    with no @websocket_authenticated decorator at all. Never actually
+    connected to; find_unprotected_routes inspects the registered route,
+    it doesn't need a live connection.
+    """
+    router = APIRouter()
+
+    @router.websocket(THROWAWAY_WS_PATH)
+    async def _throwaway(websocket: WebSocket) -> None:
+        await websocket.accept()
+        await websocket.close()
+
+    app.include_router(router, prefix="/api/v2")
+    try:
+        yield THROWAWAY_WS_PATH
+    finally:
+        app.router.routes = [
+            route for route in app.router.routes if getattr(route, "original_router", None) is not router
+        ]
+        app.router._mark_routes_changed()
+
+
+def test_ws_coverage_check_is_not_vacuous(unprotected_throwaway_ws_route):
+    violations = find_unprotected_routes(app)
+    assert f"WEBSOCKET {unprotected_throwaway_ws_route}" in violations
 
 
 def test_no_unprotected_routes():

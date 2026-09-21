@@ -5,6 +5,9 @@ retrieval, verification. The client never calls Gemini or any model
 provider directly, and no API key ever ships in the Flutter bundle.
 """
 
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from .auth import install_auth_middleware
@@ -15,8 +18,21 @@ from .routers.v2 import documents as v2_documents
 from .routers.v2 import hearings as v2_hearings
 from .routers.v2 import invites as v2_invites
 from .routers.v2 import tasks as v2_tasks
+from .routers.v2 import ws as v2_ws
+from .services.v2.connections import manager as ws_manager
 
-app = FastAPI(title="NyayMitra AI Service")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The WS connection manager broadcasts from HTTP route handlers,
+    # which run in FastAPI's worker thread pool, not on the event loop —
+    # it needs a reference to the loop to hand broadcasts back to via
+    # run_coroutine_threadsafe. Must happen before any request can arrive.
+    ws_manager.bind_loop(asyncio.get_running_loop())
+    yield
+
+
+app = FastAPI(title="NyayMitra AI Service", lifespan=lifespan)
 
 install_auth_middleware(app)
 
@@ -47,3 +63,4 @@ app.include_router(v2_documents.router, prefix="/api/v2")
 app.include_router(v2_chat.router, prefix="/api/v2")
 app.include_router(v2_invites.router, prefix="/api/v2")
 app.include_router(v2_tasks.router, prefix="/api/v2")
+app.include_router(v2_ws.router, prefix="/api/v2")

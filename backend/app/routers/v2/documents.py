@@ -20,6 +20,7 @@ from ...models.v2.document import (
 )
 from ...services.cloudinary_delivery import signed_download_url
 from ...services.pdf_extraction import extract_text
+from ...services.v2.connections import manager as ws_manager
 
 router = APIRouter()
 
@@ -109,6 +110,7 @@ async def confirm_upload(
     case.document_count += 1
 
     db.commit()
+    ws_manager.broadcast_case_sync(case_id, {"type": "documents_changed", "caseId": str(case_id)})
 
     return ConfirmUploadResponse(docId=payload.docId, ocrStatus=ocr_status, hasText=raw_text is not None)
 

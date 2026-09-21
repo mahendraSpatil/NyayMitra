@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ...db.base import get_db
 from ...dependencies import CurrentUser, get_current_user, require_case_manager
 from ...models.v2.invite import GenerateInviteResponse, RedeemInviteRequest, RedeemInviteResponse
+from ...services.v2.connections import manager as ws_manager
 from ...services.v2.invites import generate_invite, redeem_invite
 
 router = APIRouter()
@@ -44,4 +45,11 @@ def redeem(
         raise HTTPException(status_code=403, detail="Only a family account can redeem an invite")
 
     case_id = redeem_invite(db, payload.code, current_user.id)
+    # redeem_invite has already committed by the time it returns — safe
+    # to broadcast now. Both signals matter here: existing case
+    # subscribers (an advocate watching the case detail screen) find out
+    # membership changed, and the redeemer's own /ws/me finds out their
+    # case list just gained an entry.
+    ws_manager.broadcast_case_sync(case_id, {"type": "case_members_changed", "caseId": str(case_id)})
+    ws_manager.broadcast_user_sync(current_user.id, {"type": "cases_changed"})
     return RedeemInviteResponse(caseId=str(case_id))

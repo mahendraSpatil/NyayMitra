@@ -8,6 +8,7 @@ from ...db.base import get_db
 from ...db.models import Hearing
 from ...dependencies import CurrentUser, require_case_manager, require_case_member
 from ...models.v2.hearing import HearingItem, HearingRequest, HearingResponse
+from ...services.v2.connections import manager as ws_manager
 from ...services.v2.hearings import recompute_next_hearing_date
 
 router = APIRouter()
@@ -52,6 +53,10 @@ def add_hearing(
     db.flush()
     next_date = recompute_next_hearing_date(db, case_id)
     db.commit()
+    # After commit, never before — a client that refetches on this
+    # signal must see data that's actually there, not a write that then
+    # rolled back.
+    ws_manager.broadcast_case_sync(case_id, {"type": "hearings_changed", "caseId": str(case_id)})
     return HearingResponse(hearingId=str(hearing.id), nextHearingDate=next_date)
 
 
@@ -76,6 +81,7 @@ def update_hearing(
 
     next_date = recompute_next_hearing_date(db, case_id)
     db.commit()
+    ws_manager.broadcast_case_sync(case_id, {"type": "hearings_changed", "caseId": str(case_id)})
     return HearingResponse(hearingId=str(hearing.id), nextHearingDate=next_date)
 
 
@@ -94,4 +100,5 @@ def delete_hearing(
     db.flush()  # autoflush is off (db/base.py) — recompute's SELECT must see this DELETE first
     next_date = recompute_next_hearing_date(db, case_id)
     db.commit()
+    ws_manager.broadcast_case_sync(case_id, {"type": "hearings_changed", "caseId": str(case_id)})
     return HearingResponse(hearingId=str(hearing_id), nextHearingDate=next_date)
