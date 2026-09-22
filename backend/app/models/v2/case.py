@@ -1,9 +1,7 @@
-"""Same wire shape as app/models/case.py (the Firebase-era version) on
-purpose — the Flutter client's existing CaseService parses these exact
-field names. Step 5 of the Postgres migration only changes the base URL
-it calls, not a line of its JSON handling, and that's only true if these
-response shapes stay byte-for-byte identical to the ones it already
-understands.
+"""Same wire shape as the pre-migration Firestore-era case model on
+purpose — the Flutter client's CaseService parses these exact field
+names via Case.fromApi (client/lib/core/models/case.dart), which was
+written to match this shape byte-for-byte.
 """
 
 from datetime import datetime
@@ -23,7 +21,7 @@ class CreateCaseResponse(BaseModel):
 
 class CaseItem(BaseModel):
     """One case, shaped to match client/lib/core/models/case.dart's
-    Case.fromFirestore exactly — advocateUid/advocateName/familyUids/
+    Case.fromApi exactly — advocateUid/advocateName/familyUids/
     ngoUids are no longer columns on cases (case_members is the source of
     truth, commit 1), so these are joined at read time rather than
     denormalised again. timeline is always [] — cases.timeline doesn't

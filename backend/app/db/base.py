@@ -1,7 +1,5 @@
-"""Postgres engine/session setup. Migrating off Firebase per NyayMitra.md
-— Firestore stays live and in use until step 6 of that migration; this
-module and everything under app/db/ is additive, nothing reads from here
-yet.
+"""Postgres engine/session setup. The backend's only datastore, as of
+step 6 of the Firebase migration (see NyayMitra.md) — Firestore is gone.
 """
 
 from sqlalchemy import create_engine

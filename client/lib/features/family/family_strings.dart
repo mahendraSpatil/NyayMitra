@@ -5,7 +5,7 @@ import '../../core/localization/locale_lookup.dart';
 /// Bhashini) comes later. FamilyStrings below falls back to `en` for any
 /// missing/empty entry, so an unfinished locale never renders blank.
 ///
-/// This does NOT cover dynamic Firestore content (case stage labels,
+/// This does NOT cover dynamic case content (case stage labels,
 /// advocate name, court, FIR number) — that's server-authored text, not
 /// fixed UI chrome, and translating it is Bhashini's job (NyayMitra.md's AI
 /// pipeline), not a static lookup table.

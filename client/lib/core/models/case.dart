@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Matches the tones StatusBadge renders (Phase 3): info/warning/success.
 enum CaseStageTone { info, warning, success }
 
@@ -14,23 +12,9 @@ CaseStageTone _stageToneFromString(String? value) {
   }
 }
 
-String _stageToneToString(CaseStageTone tone) {
-  switch (tone) {
-    case CaseStageTone.warning:
-      return 'warning';
-    case CaseStageTone.success:
-      return 'success';
-    case CaseStageTone.info:
-      return 'info';
-  }
-}
-
 DateTime? _dateFromValue(dynamic value) {
-  if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
-  // The API's JSON encodes datetimes as ISO 8601 strings — Firestore
-  // never sent a String here, only a Timestamp, so this branch is purely
-  // for Case.fromApi.
+  // The API encodes datetimes as ISO 8601 strings.
   if (value is String) return DateTime.tryParse(value);
   return null;
 }
@@ -48,14 +32,6 @@ class TimelineEntry {
       date: _dateFromValue(map['date']),
       done: map['done'] as bool? ?? false,
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'date': date == null ? null : Timestamp.fromDate(date!),
-      'done': done,
-    };
   }
 }
 
@@ -104,41 +80,10 @@ class Case {
     this.timeline = const [],
   });
 
-  factory Case.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? const {};
-    final rawTimeline = data['timeline'] as List<dynamic>? ?? const [];
-    return Case(
-      id: doc.id,
-      firNumber: data['firNumber'] as String? ?? '',
-      court: data['court'] as String? ?? '',
-      undertrialName: data['undertrialName'] as String? ?? '',
-      advocateUid: data['advocateUid'] as String?,
-      advocateName: data['advocateName'] as String? ?? '',
-      familyUids: (data['familyUids'] as List<dynamic>? ?? const [])
-          .map((e) => e.toString())
-          .toList(),
-      ngoUids: (data['ngoUids'] as List<dynamic>? ?? const [])
-          .map((e) => e.toString())
-          .toList(),
-      createdBy: data['createdBy'] as String?,
-      ownerType: data['ownerType'] as String?,
-      stage: data['stage'] as String? ?? '',
-      stageLabel: data['stageLabel'] as String? ?? '',
-      stageTone: _stageToneFromString(data['stageTone'] as String?),
-      nextHearingDate: _dateFromValue(data['nextHearingDate']),
-      documentCount: (data['documentCount'] as num?)?.toInt() ?? 0,
-      timeline: rawTimeline
-          .map(
-            (e) => TimelineEntry.fromMap(Map<String, dynamic>.from(e as Map)),
-          )
-          .toList(),
-    );
-  }
-
-  /// GET /api/v2/cases and GET /api/v2/cases/{caseId}'s response shape
-  /// (step 5 of the Postgres migration, NyayMitra.md) — field names match
-  /// app/models/v2/case.py's CaseItem exactly, by design: the client's
-  /// parsing code didn't change, only where the JSON comes from.
+  /// GET /api/v2/cases and GET /api/v2/cases/{caseId}'s response shape —
+  /// field names match app/models/v2/case.py's CaseItem exactly, by
+  /// design: the client's parsing code didn't change from the
+  /// Firestore-era model, only where the JSON comes from.
   factory Case.fromApi(Map<String, dynamic> json) {
     final rawTimeline = json['timeline'] as List<dynamic>? ?? const [];
     return Case(
@@ -172,27 +117,5 @@ class Case {
           )
           .toList(),
     );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'firNumber': firNumber,
-      'court': court,
-      'undertrialName': undertrialName,
-      'advocateUid': advocateUid,
-      'advocateName': advocateName,
-      'familyUids': familyUids,
-      'ngoUids': ngoUids,
-      'createdBy': createdBy,
-      'ownerType': ownerType,
-      'stage': stage,
-      'stageLabel': stageLabel,
-      'stageTone': _stageToneToString(stageTone),
-      'nextHearingDate': nextHearingDate == null
-          ? null
-          : Timestamp.fromDate(nextHearingDate!),
-      'documentCount': documentCount,
-      'timeline': timeline.map((e) => e.toMap()).toList(),
-    };
   }
 }

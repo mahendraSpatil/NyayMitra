@@ -8,14 +8,6 @@ import '../models/task.dart';
 import 'api_client.dart';
 import 'ws_client.dart';
 
-/// Kept named FirestoreService, not renamed, and every method keeps its
-/// original signature — every widget does
-/// `final _firestoreService = FirestoreService();` and step 5 of the
-/// Postgres migration (NyayMitra.md) exists specifically so those call
-/// sites don't need to change. It's REST + WebSocket backed now, not
-/// Firestore; the name is a historical label at this point, not a
-/// description of what's inside.
-///
 /// Every stream here is the same shape: an initial REST fetch, then a
 /// refetch whenever a matching invalidation arrives over the relevant
 /// WebSocket channel (app/routers/v2/ws.py) — including right after
@@ -23,14 +15,14 @@ import 'ws_client.dart';
 /// invalidation sent while this client was disconnected is simply never
 /// delivered and would otherwise leave the stream silently stale until
 /// the next real change.
-class FirestoreService {
+class CaseDataService {
   final _apiClient = ApiClient.instance;
 
   /// Advocate Console docket: cases owned by this advocate, soonest
   /// hearing first. [advocateUid] is unused — the backend infers "my
   /// cases" from the caller's own access token, not a client-supplied
-  /// uid — kept only so this call's signature (and every call site of
-  /// it) didn't need to change for step 5.
+  /// uid — kept only so this call's signature didn't need to change when
+  /// the client moved off Firestore.
   Stream<List<Case>> advocateDocket(String advocateUid) => _myCases();
 
   /// NGO Portal: cases this NGO worker is a member of. Same underlying
@@ -114,7 +106,7 @@ class FirestoreService {
   Future<void> markTaskComplete(String taskId) async {
     final response = await _apiClient.patch('/tasks/$taskId/complete');
     if (response.statusCode != 200) {
-      throw FirestoreServiceException(
+      throw CaseDataServiceException(
         _readableError(response.body, response.statusCode),
       );
     }
@@ -132,7 +124,7 @@ class FirestoreService {
       fetch: () async {
         final response = await _apiClient.get(path);
         if (response.statusCode != 200) {
-          throw FirestoreServiceException(
+          throw CaseDataServiceException(
             _readableError(response.body, response.statusCode),
           );
         }
@@ -157,7 +149,7 @@ class FirestoreService {
           return null;
         }
         if (response.statusCode != 200) {
-          throw FirestoreServiceException(
+          throw CaseDataServiceException(
             _readableError(response.body, response.statusCode),
           );
         }
@@ -219,8 +211,8 @@ class FirestoreService {
   }
 }
 
-class FirestoreServiceException implements Exception {
-  FirestoreServiceException(this.message);
+class CaseDataServiceException implements Exception {
+  CaseDataServiceException(this.message);
 
   final String message;
 

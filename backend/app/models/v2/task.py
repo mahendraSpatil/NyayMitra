@@ -10,7 +10,7 @@ class TaskCompleteResponse(BaseModel):
 
 
 class TaskItem(BaseModel):
-    """Matches client/lib/core/models/task.dart's Task.fromFirestore field
+    """Matches client/lib/core/models/task.dart's Task.fromApi field
     names.
     """
 

@@ -1,8 +1,8 @@
 """Invite generation and redemption on Postgres — the replacement for
-app/services/invites.py's Firestore-transaction version. Entirely
-backend-mediated, both directions; there is no client write path to
-invites/invite_attempts in this schema at all (no rules to deny — the
-tables are simply never exposed to anything but this module).
+the deleted Firestore-transaction version. Entirely backend-mediated,
+both directions; there is no client write path to invites/invite_attempts
+in this schema at all (no rules to deny — the tables are simply never
+exposed to anything but this module).
 """
 
 import hashlib

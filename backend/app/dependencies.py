@@ -1,7 +1,7 @@
-"""The authorization boundary for the Postgres side of the app. Once
-routes are ported off Firebase (step 3), firestore.rules no longer exists
-— these dependencies ARE the security boundary, not a convenience layer
-in front of one. Every dependency here ultimately resolves through
+"""The authorization boundary for the app. firestore.rules no longer
+exists (step 6 of the Firebase migration — see NyayMitra.md) — these
+dependencies ARE the security boundary, not a convenience layer in front
+of one. Every dependency here ultimately resolves through
 get_current_user, which is exactly what tests/test_route_coverage.py
 checks for: a route with none of these anywhere in its dependency tree
 is unprotected, full stop.

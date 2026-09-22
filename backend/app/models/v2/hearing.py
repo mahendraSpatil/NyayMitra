@@ -20,11 +20,9 @@ class HearingResponse(BaseModel):
 
 class HearingItem(BaseModel):
     """One row of GET /cases/{caseId}/hearings — this endpoint didn't
-    exist before the Postgres migration (the Flutter client read
+    exist before the Postgres migration (the Flutter client used to read
     hearings straight from a Firestore stream); field names match
-    client/lib/core/models/hearing.dart's Hearing.fromFirestore exactly,
-    since that's what will parse this once step 5 switches the client
-    over.
+    client/lib/core/models/hearing.dart's Hearing.fromApi exactly.
     """
 
     id: str

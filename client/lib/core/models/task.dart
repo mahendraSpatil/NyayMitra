@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 /// Human-readable category labels, kept separate from the raw taskType
 /// value for the same reason DocTypeLabel is separate from _docTypeToString:
 /// UI copy and storage keys change for different reasons. Falls back to the
@@ -20,7 +18,7 @@ extension TaskTypeLabel on String {
   }
 }
 
-/// Matches tasks/{taskId}. taskType and priority stay free-form strings:
+/// One field task. taskType and priority stay free-form strings:
 /// NyayMitra.md's demo data shows examples (translation, legal aid
 /// coordination, verification visit; high/medium/scheduled) but never
 /// defines a fixed enum for either, so pinning one down here would be a
@@ -46,23 +44,6 @@ class Task {
     this.completedAt,
   });
 
-  factory Task.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? const {};
-    final completedAtValue = data['completedAt'];
-    return Task(
-      id: doc.id,
-      assignedToUid: data['assignedToUid'] as String? ?? '',
-      caseId: data['caseId'] as String? ?? '',
-      taskType: data['taskType'] as String? ?? '',
-      priority: data['priority'] as String? ?? '',
-      description: data['description'] as String? ?? '',
-      completed: data['completed'] as bool? ?? false,
-      completedAt: completedAtValue is Timestamp
-          ? completedAtValue.toDate()
-          : null,
-    );
-  }
-
   /// GET /api/v2/tasks — field names match app/models/v2/task.py's
   /// TaskItem exactly.
   factory Task.fromApi(Map<String, dynamic> json) {
@@ -79,19 +60,5 @@ class Task {
           ? null
           : DateTime.tryParse(completedAtValue),
     );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'assignedToUid': assignedToUid,
-      'caseId': caseId,
-      'taskType': taskType,
-      'priority': priority,
-      'description': description,
-      'completed': completed,
-      'completedAt': completedAt == null
-          ? null
-          : Timestamp.fromDate(completedAt!),
-    };
   }
 }

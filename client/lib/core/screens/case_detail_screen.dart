@@ -6,7 +6,7 @@ import '../models/case.dart';
 import '../models/case_document.dart';
 import '../models/hearing.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/case_data_service.dart';
 import '../services/invite_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/hearing_form_sheet.dart';
@@ -35,25 +35,25 @@ class CaseDetailScreen extends StatefulWidget {
 }
 
 class _CaseDetailScreenState extends State<CaseDetailScreen> {
-  final _firestoreService = FirestoreService();
+  final _caseDataService = CaseDataService();
   final _inviteService = InviteService();
 
   // Created once, not inside build() — see the same note on
   // AdvocateHome/NgoHome/FamilyHome: a fresh Stream instance per build()
   // makes StreamBuilder tear down and re-subscribe on every rebuild,
   // including the several rebuilds a route-push animation alone fires.
-  late final Stream<Case?> _caseStream = _firestoreService.caseById(
+  late final Stream<Case?> _caseStream = _caseDataService.caseById(
     widget.caseId,
   );
-  late final Stream<List<CaseDocument>> _documentsStream = _firestoreService
+  late final Stream<List<CaseDocument>> _documentsStream = _caseDataService
       .caseDocuments(widget.caseId);
-  late final Stream<List<Hearing>> _hearingsStream = _firestoreService
+  late final Stream<List<Hearing>> _hearingsStream = _caseDataService
       .caseHearings(widget.caseId);
 
-  // Mirrors backend/app/services/case_access.py's is_case_manager exactly
-  // — the advocate, an assigned NGO worker, or (for a self-managed
-  // family case) whoever created it. A family member who only joined via
-  // invite is a member, not a manager, same as on the backend.
+  // Mirrors CaseMember.is_manager (backend/app/db/models.py) exactly —
+  // the advocate, an assigned NGO worker, or (for a self-managed family
+  // case) whoever created it. A family member who only joined via invite
+  // is a member, not a manager, same as on the backend.
   bool _isManager(Case theCase) {
     final uid = AuthService().currentUser?.uid;
     if (uid == null) return false;
@@ -218,10 +218,9 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                     );
                   }
                   // Surfaced distinctly from "no documents" on purpose: a
-                  // permission-denied read (e.g. firestore.rules not yet
-                  // redeployed with the documents/ subcollection rule)
-                  // would otherwise look identical to a genuinely empty
-                  // document list.
+                  // permission-denied read (a 403 from the backend) would
+                  // otherwise look identical to a genuinely empty document
+                  // list.
                   if (docsSnapshot.hasError) {
                     return Text(
                       'Could not load documents: ${docsSnapshot.error}',

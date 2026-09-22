@@ -2,7 +2,7 @@
 
 Access tokens are short-lived JWTs (sub + role), verified on every
 request by app/dependencies.py's get_current_user — the replacement for
-Firebase's verify_id_token, once routes are ported onto it (step 3).
+Firebase's verify_id_token.
 
 Refresh tokens are NOT JWTs: they're opaque random values, handed to the
 client once and never decoded — only ever looked up by the SHA-256 hash

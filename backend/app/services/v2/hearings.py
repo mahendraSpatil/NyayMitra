@@ -1,8 +1,8 @@
 """Recomputes cases.next_hearing_date from its hearings — the Postgres
-equivalent of app/services/hearings.py (Firestore). Called after every
-hearing add/edit/delete; next_hearing_date is a denormalised convenience
-for list/sort queries that must never drift from the hearings it's
-derived from.
+equivalent of the deleted Firestore-era hearings service. Called after
+every hearing add/edit/delete; next_hearing_date is a denormalised
+convenience for list/sort queries that must never drift from the
+hearings it's derived from.
 """
 
 import uuid

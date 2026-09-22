@@ -10,8 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .auth import install_auth_middleware
-from .routers import auth, cases, chat, documents, invites
+from .routers import auth
 from .routers.v2 import cases as v2_cases
 from .routers.v2 import chat as v2_chat
 from .routers.v2 import documents as v2_documents
@@ -34,29 +33,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="NyayMitra AI Service", lifespan=lifespan)
 
-install_auth_middleware(app)
-
 
 @app.get("/health", tags=["health"])
 def health() -> dict:
     return {"status": "ok"}
 
 
-# Legacy Firebase-authenticated routes — untouched, still serving the
-# current Flutter app exactly as before. Deleted in step 6 of the
-# Postgres migration (NyayMitra.md), once step 5 has switched the client
-# over to /api/v2.
+# Every route in the app now lives under /api/v2 and is authorized by
+# one of the dependencies in app/dependencies.py — Firebase, its ID-token
+# middleware, and the pre-Postgres routers they used to gate are gone
+# (step 6 of the migration; see NyayMitra.md). app/security/route_coverage.py
+# enforces that every route here (auth.router's /auth/login and
+# /auth/refresh excepted, and /health) carries real authorization, not
+# developer discipline.
 app.include_router(auth.router, prefix="/api/v2")
-app.include_router(chat.router)
-app.include_router(documents.router)
-app.include_router(cases.router)
-app.include_router(invites.router)
-
-# The Postgres/JWT replacements, built alongside the legacy routes above
-# rather than in place of them — nothing switches over to these until
-# step 5. Every route here uses one of the authorization dependencies in
-# app/dependencies.py; app/security/route_coverage.py enforces that for
-# the whole app from this commit on, /api/v2 included.
 app.include_router(v2_cases.router, prefix="/api/v2")
 app.include_router(v2_hearings.router, prefix="/api/v2")
 app.include_router(v2_documents.router, prefix="/api/v2")

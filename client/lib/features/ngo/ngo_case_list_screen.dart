@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/case.dart';
 import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/firestore_service.dart';
+import '../../core/services/case_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/create_case_sheet.dart';
 import '../../core/widgets/status_badge.dart';
@@ -23,9 +23,9 @@ class NgoCaseListScreen extends StatefulWidget {
 }
 
 class _NgoCaseListScreenState extends State<NgoCaseListScreen> {
-  final _firestoreService = FirestoreService();
+  final _caseDataService = CaseDataService();
 
-  late final Stream<List<Case>> _casesStream = _firestoreService.ngoCases(
+  late final Stream<List<Case>> _casesStream = _caseDataService.ngoCases(
     AuthService().currentUser?.uid ?? '',
   );
 

@@ -39,7 +39,7 @@ class DownloadUrlResponse(BaseModel):
 
 class DocumentItem(BaseModel):
     """Matches client/lib/core/models/case_document.dart's
-    CaseDocument.fromFirestore field names.
+    CaseDocument.fromApi field names.
     """
 
     id: str

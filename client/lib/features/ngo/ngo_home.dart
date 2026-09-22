@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/task.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/firestore_service.dart';
+import '../../core/services/case_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/filter_chip_row.dart';
 import '../../core/widgets/nyaymitra_fab.dart';
@@ -25,7 +25,7 @@ class NgoHome extends StatefulWidget {
 }
 
 class _NgoHomeState extends State<NgoHome> {
-  final _firestoreService = FirestoreService();
+  final _caseDataService = CaseDataService();
   final _searchController = TextEditingController();
   int _filterIndex = 0;
   String _query = '';
@@ -33,7 +33,7 @@ class _NgoHomeState extends State<NgoHome> {
   // Created once, not inside build() — see the same note on AdvocateHome's
   // _docketStream: a fresh Stream instance per build() makes StreamBuilder
   // tear down and re-subscribe on every keystroke/filter tap.
-  late final Stream<List<Task>> _taskStream = _firestoreService.ngoTaskList(
+  late final Stream<List<Task>> _taskStream = _caseDataService.ngoTaskList(
     AuthService().currentUser?.uid ?? '',
   );
 
@@ -77,7 +77,7 @@ class _NgoHomeState extends State<NgoHome> {
 
   Future<void> _markComplete(BuildContext context, Task task) async {
     try {
-      await _firestoreService.markTaskComplete(task.id);
+      await _caseDataService.markTaskComplete(task.id);
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

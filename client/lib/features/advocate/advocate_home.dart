@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/case.dart';
 import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/firestore_service.dart';
+import '../../core/services/case_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/create_case_sheet.dart';
 import '../../core/widgets/filter_chip_row.dart';
@@ -26,7 +26,7 @@ class AdvocateHome extends StatefulWidget {
 }
 
 class _AdvocateHomeState extends State<AdvocateHome> {
-  final _firestoreService = FirestoreService();
+  final _caseDataService = CaseDataService();
   final _searchController = TextEditingController();
   int _filterIndex = 0;
   String _query = '';
@@ -35,11 +35,12 @@ class _AdvocateHomeState extends State<AdvocateHome> {
   // instance as a stream *change* and resubscribes, resetting to its
   // loading state in the process. Search text and filter chips change on
   // every keystroke/tap — if this stream were built fresh in build(),
-  // every one of those would tear down and re-establish the Firestore
-  // listener instead of just recomputing _filtered() over already-loaded
+  // every one of those would tear down and re-establish the WebSocket
+  // connection instead of just recomputing _filtered() over already-loaded
   // data.
-  late final Stream<List<Case>> _docketStream = _firestoreService
-      .advocateDocket(AuthService().currentUser?.uid ?? '');
+  late final Stream<List<Case>> _docketStream = _caseDataService.advocateDocket(
+    AuthService().currentUser?.uid ?? '',
+  );
 
   @override
   void initState() {

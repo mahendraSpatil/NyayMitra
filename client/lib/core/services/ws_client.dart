@@ -9,8 +9,8 @@ import 'token_storage.dart';
 
 /// Tracks every currently-open WsChannel so sign-out can force-close all
 /// of them in one call, on top of (not instead of) each channel's normal
-/// close-when-nobody's-listening lifecycle (DataService's
-/// _caseStream/_userStream helpers — see firestore_service.dart). Belt
+/// close-when-nobody's-listening lifecycle (CaseDataService's
+/// _listStream/_singleStream helpers — see case_data_service.dart). Belt
 /// and suspenders deliberately: the normal path already closes a
 /// channel once its last StreamBuilder unsubscribes, but sign-out
 /// shouldn't depend on every widget having unmounted in the right order

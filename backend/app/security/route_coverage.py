@@ -1,8 +1,8 @@
 """Default-deny route coverage: every registered route must either be on
-the explicit public allowlist or carry recognized authorization. Once
-Firestore rules are gone (migration step 6), this check — not developer
-discipline — is what stops a new case-scoped route (HTTP or WebSocket)
-from shipping unauthorized by accident.
+the explicit public allowlist or carry recognized authorization. Now that
+firestore.rules no longer exists (migration step 6 — Firebase is gone),
+this check — not developer discipline — is what stops a new case-scoped
+route (HTTP or WebSocket) from shipping unauthorized by accident.
 
 Two kinds of route, two ways of recognizing authorization on them:
   - fastapi.routing.APIRoute (ordinary HTTP): checked by walking the
@@ -55,30 +55,6 @@ PUBLIC_ALLOWLIST = {
     ("GET", "/health"),
 }
 
-# The pre-Postgres routes (app/routers/{cases,documents,chat,invites}.py)
-# — still Firebase-ASGI-middleware-authenticated, still serving the
-# current Flutter app exactly as before, deliberately untouched by this
-# migration until step 5 switches the client to /api/v2 and step 6
-# deletes all of these outright. They are REMOVED wholesale in step 6,
-# never ported in place — the /api/v2 routers already are each one's
-# replacement, built alongside rather than by editing these. New routes
-# must never be added to this set; every new route uses the real
-# dependency from the start, which is exactly what this check exists to
-# guarantee for everything under /api/v2 from the moment that namespace
-# exists.
-LEGACY_FIREBASE_ROUTES_REMOVED_IN_STEP_6 = {
-    ("POST", "/chat"),
-    ("POST", "/cases"),
-    ("POST", "/cases/{case_id}/hearings"),
-    ("PUT", "/cases/{case_id}/hearings/{hearing_id}"),
-    ("DELETE", "/cases/{case_id}/hearings/{hearing_id}"),
-    ("POST", "/documents/sign-upload"),
-    ("POST", "/documents/confirm-upload"),
-    ("GET", "/documents/{case_id}/{doc_id}/download-url"),
-    ("POST", "/cases/{case_id}/invites"),
-    ("POST", "/invites/redeem"),
-}
-
 
 def _has_auth_dependency(dependant: Dependant) -> bool:
     # Every authorization dependency this project defines (require_case_
@@ -94,7 +70,7 @@ def _has_auth_dependency(dependant: Dependant) -> bool:
     return any(_has_auth_dependency(sub) for sub in dependant.dependencies)
 
 
-def find_unprotected_routes(app: FastAPI, *, ignore_legacy: bool = True) -> list[str]:
+def find_unprotected_routes(app: FastAPI) -> list[str]:
     """Returns "METHOD /path" (or "WEBSOCKET /path") for every route that
     is neither on the public allowlist nor carrying recognized
     authorization. Empty means the whole app is covered.
@@ -128,16 +104,14 @@ def find_unprotected_routes(app: FastAPI, *, ignore_legacy: bool = True) -> list
         # the same day as the _IncludedRouter discovery: an early version
         # of this file used original_route.path here and every /api/v2
         # route silently reported as its legacy bare-path twin instead —
-        # collisions PUBLIC_ALLOWLIST and the legacy set never would have
-        # caught, because both use effective paths as keys.
+        # a collision PUBLIC_ALLOWLIST never would have caught, since it
+        # uses effective paths as keys.
         path = route_context.path
         for method in route_context.methods:
             if method == "HEAD":
                 continue  # implied by GET, not a separate route to police
             key = (method, path)
             if key in PUBLIC_ALLOWLIST:
-                continue
-            if ignore_legacy and key in LEGACY_FIREBASE_ROUTES_REMOVED_IN_STEP_6:
                 continue
             if not _has_auth_dependency(route.dependant):
                 violations.append(f"{method} {path}")

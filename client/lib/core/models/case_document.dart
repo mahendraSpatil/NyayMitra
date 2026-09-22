@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum DocType {
   fir,
   chargeSheet,
@@ -11,8 +9,8 @@ enum DocType {
 
 /// Public wrapper so callers with just the raw API string (e.g. a chat
 /// reply's CitedDocument) can get a human label without re-implementing
-/// this mapping — _docTypeFromString itself stays private since fromMap/
-/// fromFirestore are the normal entry points.
+/// this mapping — _docTypeFromString itself stays private since
+/// CaseDocument.fromApi is the normal entry point.
 DocType docTypeFromApiValue(String? value) => _docTypeFromString(value);
 
 DocType _docTypeFromString(String? value) {
@@ -49,9 +47,9 @@ String _docTypeToString(DocType type) {
   }
 }
 
-/// Human-readable labels, kept separate from _docTypeToString (the
-/// Firestore field value) since UI copy and storage keys change for
-/// different reasons.
+/// Human-readable labels, kept separate from _docTypeToString (the API
+/// field value) since UI copy and storage keys change for different
+/// reasons.
 extension DocTypeLabel on DocType {
   String get label {
     switch (this) {
@@ -70,7 +68,7 @@ extension DocTypeLabel on DocType {
     }
   }
 
-  /// The raw Firestore field value — same mapping _docTypeToString uses,
+  /// The raw API field value — same mapping _docTypeToString uses,
   /// exposed publicly for callers outside this model (the upload flow
   /// needs to send this to the backend) rather than duplicating the
   /// switch statement.
@@ -88,10 +86,6 @@ class Statute {
       code: map['code'] as String? ?? '',
       bnsEquivalent: map['bnsEquivalent'] as String?,
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {'code': code, 'bnsEquivalent': bnsEquivalent};
   }
 }
 
@@ -117,28 +111,6 @@ class CaseDocument {
     this.statutes = const [],
   });
 
-  factory CaseDocument.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data() ?? const {};
-    final rawStatutes = data['statutes'] as List<dynamic>? ?? const [];
-    final uploadedAtValue = data['uploadedAt'];
-    return CaseDocument(
-      id: doc.id,
-      docType: _docTypeFromString(data['docType'] as String?),
-      storagePath: data['storagePath'] as String?,
-      uploadedBy: data['uploadedBy'] as String?,
-      uploadedAt: uploadedAtValue is Timestamp
-          ? uploadedAtValue.toDate()
-          : null,
-      ocrStatus: data['ocrStatus'] as String?,
-      rawText: data['rawText'] as String?,
-      statutes: rawStatutes
-          .map((e) => Statute.fromMap(Map<String, dynamic>.from(e as Map)))
-          .toList(),
-    );
-  }
-
   /// GET /api/v2/cases/{caseId}/documents — field names match
   /// app/models/v2/document.py's DocumentItem exactly.
   factory CaseDocument.fromApi(Map<String, dynamic> json) {
@@ -158,17 +130,5 @@ class CaseDocument {
           .map((e) => Statute.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'docType': _docTypeToString(docType),
-      'storagePath': storagePath,
-      'uploadedBy': uploadedBy,
-      'uploadedAt': uploadedAt == null ? null : Timestamp.fromDate(uploadedAt!),
-      'ocrStatus': ocrStatus,
-      'rawText': rawText,
-      'statutes': statutes.map((e) => e.toMap()).toList(),
-    };
   }
 }

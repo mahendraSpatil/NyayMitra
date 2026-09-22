@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/case.dart';
 import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/auth_service.dart';
-import '../../core/services/firestore_service.dart';
+import '../../core/services/case_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/case_timeline.dart';
 import '../../core/widgets/nyaymitra_fab.dart';
@@ -25,7 +25,7 @@ class FamilyHome extends StatefulWidget {
 }
 
 class _FamilyHomeState extends State<FamilyHome> {
-  final _firestoreService = FirestoreService();
+  final _caseDataService = CaseDataService();
 
   // Created once, not inside build() — see the same note on
   // AdvocateHome/NgoHome: a fresh Stream instance per build() makes
@@ -35,18 +35,17 @@ class _FamilyHomeState extends State<FamilyHome> {
   // Server-side scoped by familyUids — not a broader query filtered
   // client-side. A family user can only ever match cases that list their
   // own uid; there is no path here that reads other families' cases.
-  late final Stream<List<Case>> _casesStream = _firestoreService.familyCases(
+  late final Stream<List<Case>> _casesStream = _caseDataService.familyCases(
     _uid,
   );
 
   @override
   Widget build(BuildContext context) {
     // AuthService().currentUser, not a stream: /me is the only source of
-    // "my own profile" now (step 5 of the Postgres migration,
-    // NyayMitra.md), already loaded by the time RootRouter ever shows
-    // this screen (it only does once AuthService reports a signed-in
-    // user), so there's nothing to wait on here the way the old
-    // Firestore-backed profile stream needed a StreamBuilder for.
+    // "my own profile" now, already loaded by the time RootRouter ever
+    // shows this screen (it only does once AuthService reports a
+    // signed-in user), so there's nothing to wait on here the way the
+    // old Firestore-backed profile stream needed a StreamBuilder for.
     final locale = resolveFamilyLocale(
       AuthService().currentUser?.preferredLanguage,
     );

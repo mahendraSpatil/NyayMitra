@@ -34,13 +34,6 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  # Firebase packages/config stay in place through the whole Postgres
-  # migration (NyayMitra.md) — nothing here is called anymore as of step
-  # 5, but removing packages/config is step 6's job specifically, not a
-  # side effect of the cutover commit.
-  firebase_core: ^4.14.0
-  firebase_auth: ^6.6.1
-  cloud_firestore: ^6.9.0
   provider: ^6.1.5+1
   file_picker: ^12.3.0
   intl: ^0.20.3
@@ -51,9 +44,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # Needed for real-Firebase integration tests (firestore.rules
-  # verification, invite-flow adversarial tests) — plain flutter_test has
-  # no platform channels, so Firebase plugins can't initialize under it.
+  # Needed for tests that exercise real platform channels (e.g.
+  # flutter_secure_storage) — plain flutter_test has none, so those
+  # plugins can't initialize under it. See integration_test/.
   integration_test:
     sdk: flutter
   # The "flutter_lints" package below contains a set of recommended lints to
