@@ -11,7 +11,7 @@ String _chatRoleToString(ChatRole role) {
 }
 
 /// Never defaults to verified: an unrecognized or missing value must read
-/// as unverified, per CLAUDE.md's fail-closed rule for anything reaching a
+/// as unverified, per NyayMitra.md's fail-closed rule for anything reaching a
 /// user before it has passed verification.
 enum VerificationStatus { verified, unverified }
 
@@ -67,21 +67,27 @@ class ChatMessage {
     this.citedDocuments = const [],
   });
 
-  factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory ChatMessage.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? const {};
-    final rawCitedDocuments = data['citedDocuments'] as List<dynamic>? ?? const [];
+    final rawCitedDocuments =
+        data['citedDocuments'] as List<dynamic>? ?? const [];
     return ChatMessage(
       id: doc.id,
       role: _chatRoleFromString(data['role'] as String?),
       text: data['text'] as String? ?? '',
       language: data['language'] as String?,
-      verificationStatus:
-          _verificationStatusFromString(data['verificationStatus'] as String?),
+      verificationStatus: _verificationStatusFromString(
+        data['verificationStatus'] as String?,
+      ),
       citedSections: (data['citedSections'] as List<dynamic>? ?? const [])
           .map((e) => e.toString())
           .toList(),
       citedDocuments: rawCitedDocuments
-          .map((e) => CitedDocument.fromMap(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) => CitedDocument.fromMap(Map<String, dynamic>.from(e as Map)),
+          )
           .toList(),
     );
   }

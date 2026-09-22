@@ -28,7 +28,7 @@ async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     # TODO(translation_service): no Bhashini translation yet.
     # TODO(verification_service): always unverified until both law
     #     grounding and document faithfulness are implemented. Per
-    #     CLAUDE.md's fail-closed rule, never stub this to return verified
+    #     NyayMitra.md's fail-closed rule, never stub this to return verified
     #     — including when the reply is grounded in real document text.
     #     Having context is not the same as having verified a claim
     #     against it.

@@ -1,5 +1,5 @@
 """Fetches a case's own uploaded documents with extracted text, for /chat
-to include as context. This is NOT retrieval_service from CLAUDE.md's AI
+to include as context. This is NOT retrieval_service from NyayMitra.md's AI
 pipeline (that's a cross-encoder reranker over the case-law vector DB, for
 past judgments — a different, still-unbuilt thing). This is simpler:
 every document belonging to THIS case that has usable extracted text, in

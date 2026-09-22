@@ -7,7 +7,7 @@ import '../../core/localization/locale_lookup.dart';
 ///
 /// This does NOT cover dynamic Firestore content (case stage labels,
 /// advocate name, court, FIR number) — that's server-authored text, not
-/// fixed UI chrome, and translating it is Bhashini's job (CLAUDE.md's AI
+/// fixed UI chrome, and translating it is Bhashini's job (NyayMitra.md's AI
 /// pipeline), not a static lookup table.
 ///
 /// Sign-out has its own strings in core/localization/portal_strings.dart
@@ -32,13 +32,14 @@ const Map<String, Map<String, String>> _familyStringsTable = {
     'redeemInviteDialogTitle': 'Join a Case',
     'redeemInviteFieldLabel': 'Enter invite code',
     'redeemInviteSubmitLabel': 'Join',
-    'createOwnCaseButtonLabel': "Don't have a lawyer yet? Track a case yourself",
+    'createOwnCaseButtonLabel':
+        "Don't have a lawyer yet? Track a case yourself",
     'createOwnCaseTitle': 'Track a Case Yourself',
     'createOwnCaseDisclaimer':
         'This is a personal record for your own use, not an official court '
-            'record — NyayMitra does not pull this from any court system. It '
-            "only shows what you enter. If you get a lawyer later, they can "
-            'send you an invite code to switch to their case record instead.',
+        'record — NyayMitra does not pull this from any court system. It '
+        "only shows what you enter. If you get a lawyer later, they can "
+        'send you an invite code to switch to their case record instead.',
     'createOwnCaseNameFieldLabel': "Undertrial's name",
     'createOwnCaseSubmitLabel': 'Start Tracking',
   },
@@ -51,7 +52,8 @@ class FamilyStrings {
 
   final String locale;
 
-  String _t(String key) => lookupLocalizedString(_familyStringsTable, locale, key);
+  String _t(String key) =>
+      lookupLocalizedString(_familyStringsTable, locale, key);
 
   String get portalTitle => _t('portalTitle');
   String get portalSubtitle => _t('portalSubtitle');
@@ -77,11 +79,12 @@ class FamilyStrings {
   String get createOwnCaseSubmitLabel => _t('createOwnCaseSubmitLabel');
 }
 
-/// Supported locale codes, in the order CLAUDE.md lists them.
+/// Supported locale codes, in the order NyayMitra.md lists them.
 const supportedFamilyLocales = ['en', 'mr', 'hi'];
 
 String resolveFamilyLocale(String? preferredLanguage) {
-  if (preferredLanguage != null && supportedFamilyLocales.contains(preferredLanguage)) {
+  if (preferredLanguage != null &&
+      supportedFamilyLocales.contains(preferredLanguage)) {
     return preferredLanguage;
   }
   return 'en';

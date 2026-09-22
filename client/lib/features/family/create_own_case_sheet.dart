@@ -9,13 +9,16 @@ import 'family_strings.dart';
 /// familyCases stream picks it up on its own once created (the creator
 /// is written as the case's own sole familyUids entry server-side).
 ///
-/// CLAUDE.md's guardrail applies here directly, not just to AI output:
+/// NyayMitra.md's guardrail applies here directly, not just to AI output:
 /// someone tracking a detained relative's case may reasonably assume an
 /// app like this is pulling from real court records. It isn't — this is
 /// whatever the family types in, nothing more — so the disclaimer is
 /// shown on the form itself, not just documented in this codebase where
 /// only a developer would ever read it.
-Future<bool?> openCreateOwnCaseSheet(BuildContext context, {required FamilyStrings strings}) {
+Future<bool?> openCreateOwnCaseSheet(
+  BuildContext context, {
+  required FamilyStrings strings,
+}) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
@@ -87,7 +90,10 @@ class _CreateOwnCaseSheetState extends State<CreateOwnCaseSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.strings.createOwnCaseTitle, style: AppTextStyles.portalTitle),
+          Text(
+            widget.strings.createOwnCaseTitle,
+            style: AppTextStyles.portalTitle,
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -104,7 +110,9 @@ class _CreateOwnCaseSheetState extends State<CreateOwnCaseSheet> {
           TextField(
             controller: _nameController,
             enabled: !_isSubmitting,
-            decoration: InputDecoration(labelText: widget.strings.createOwnCaseNameFieldLabel),
+            decoration: InputDecoration(
+              labelText: widget.strings.createOwnCaseNameFieldLabel,
+            ),
           ),
           const SizedBox(height: 20),
           FilledButton(
@@ -113,7 +121,10 @@ class _CreateOwnCaseSheetState extends State<CreateOwnCaseSheet> {
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.surface),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.surface,
+                    ),
                   )
                 : Text(widget.strings.createOwnCaseSubmitLabel),
           ),
@@ -122,7 +133,9 @@ class _CreateOwnCaseSheetState extends State<CreateOwnCaseSheet> {
             Text(
               _errorText!,
               textAlign: TextAlign.center,
-              style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.danger),
+              style: AppTextStyles.cardSubtitle.copyWith(
+                color: AppColors.danger,
+              ),
             ),
           ],
         ],

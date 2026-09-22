@@ -13,7 +13,7 @@ class CitedDocument(BaseModel):
 
 class ChatResponse(BaseModel):
     """Field names match the cases/{caseId}/messages/{messageId} schema
-    (CLAUDE.md), not a backend-only convention — so the Flutter client can
+    (NyayMitra.md), not a backend-only convention — so the Flutter client can
     parse this straight into a ChatMessage-shaped value.
 
     citedDocuments is new: which of the case's documents were actually in

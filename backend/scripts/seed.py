@@ -1,4 +1,4 @@
-"""Provisions the three NyayMitra test accounts and CLAUDE.md's demo data.
+"""Provisions the three NyayMitra test accounts and NyayMitra.md's demo data.
 
 Usage:
     GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json python seed.py

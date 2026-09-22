@@ -26,11 +26,14 @@ class UploadSheetResult {
 
 /// Opens the sheet and, once it closes after a completed (not cancelled)
 /// attempt, tells the user the outcome — including the two non-happy
-/// paths CLAUDE.md requires surfacing rather than silently swallowing:
+/// paths NyayMitra.md requires surfacing rather than silently swallowing:
 /// no text layer (a scan) and unreadable as a PDF at all. The single
 /// entry point both Advocate Console and Family Portal call, so this
 /// outcome messaging exists in exactly one place.
-Future<void> openUploadDocumentSheet(BuildContext context, {required String caseId}) async {
+Future<void> openUploadDocumentSheet(
+  BuildContext context, {
+  required String caseId,
+}) async {
   final result = await showModalBottomSheet<UploadSheetResult>(
     context: context,
     isScrollControlled: true,
@@ -44,8 +47,9 @@ Future<void> openUploadDocumentSheet(BuildContext context, {required String case
 
   final message = switch (result.ocrStatus) {
     'extracted' => 'Document uploaded.',
-    'no_text_layer' => "Uploaded, but no readable text was found — this looks like a "
-        "scan. Text extraction isn't available for scans yet.",
+    'no_text_layer' =>
+      "Uploaded, but no readable text was found — this looks like a "
+          "scan. Text extraction isn't available for scans yet.",
     _ => "Uploaded, but the file couldn't be read as a PDF.",
   };
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -71,7 +75,10 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
   String? _errorText;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
     if (result.isEmpty) return;
     setState(() {
       _pickedFile = result.single;
@@ -96,7 +103,10 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
       );
       if (!mounted) return;
       Navigator.of(context).pop(
-        UploadSheetResult(ocrStatus: outcome.ocrStatus, hasText: outcome.hasText),
+        UploadSheetResult(
+          ocrStatus: outcome.ocrStatus,
+          hasText: outcome.hasText,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -132,7 +142,9 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
                 ChoiceChip(
                   label: Text(type.label),
                   selected: _docType == type,
-                  onSelected: _isUploading ? null : (_) => setState(() => _docType = type),
+                  onSelected: _isUploading
+                      ? null
+                      : (_) => setState(() => _docType = type),
                   selectedColor: AppColors.ink,
                   labelStyle: AppTextStyles.badgeLabel.copyWith(
                     color: _docType == type ? AppColors.surface : AppColors.ink,
@@ -159,7 +171,10 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.surface),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.surface,
+                    ),
                   )
                 : const Text('Upload'),
           ),
@@ -168,7 +183,9 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
             Text(
               _errorText!,
               textAlign: TextAlign.center,
-              style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.danger),
+              style: AppTextStyles.cardSubtitle.copyWith(
+                color: AppColors.danger,
+              ),
             ),
           ],
         ],
