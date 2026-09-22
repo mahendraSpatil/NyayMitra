@@ -2,13 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
-/// TODO: same dev-only placeholder as chat_service.dart's _baseUrl — needs
-/// real build-time configuration before this reaches any device but this
-/// machine.
-const _baseUrl = 'http://localhost:8000';
+import 'api_client.dart';
 
 class DocumentUploadOutcome {
   const DocumentUploadOutcome({required this.ocrStatus, required this.hasText});
@@ -30,45 +26,43 @@ class DocumentUploadException implements Exception {
 /// signature, upload the file bytes directly to Cloudinary (the backend
 /// never sees the file in transit), then tell the backend the upload
 /// succeeded so it can download the file itself, extract text, and write
-/// the Firestore record. Shared by the Advocate Console and Family Portal
-/// — both use the same UploadDocumentSheet.
+/// the case-document record. Shared by the Advocate Console and Family
+/// Portal — both use the same UploadDocumentSheet.
+///
+/// Only the first and third steps go through ApiClient — the middle step
+/// uploads directly to Cloudinary's own API (a different host entirely,
+/// authenticated by the signature itself, not a Bearer token), so it
+/// stays a plain http.MultipartRequest.
 class DocumentUploadService {
+  final _apiClient = ApiClient.instance;
+
   Future<DocumentUploadOutcome> upload({
     required String caseId,
     required String docTypeApiValue,
     required PlatformFile file,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw StateError('upload called with no signed-in user');
-    }
-    final token = await user.getIdToken();
-    final authHeaders = {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
-
-    final signResponse = await http.post(
-      Uri.parse('$_baseUrl/documents/sign-upload'),
-      headers: authHeaders,
-      body: jsonEncode({'caseId': caseId, 'docType': docTypeApiValue}),
+    final signResponse = await _apiClient.post(
+      '/documents/sign-upload',
+      body: {'caseId': caseId, 'docType': docTypeApiValue},
     );
     if (signResponse.statusCode != 200) {
       throw DocumentUploadException(_readableError(signResponse));
     }
     final signed = jsonDecode(signResponse.body) as Map<String, dynamic>;
 
-    final actualPublicId = await _uploadToCloudinary(signed: signed, file: file);
+    final actualPublicId = await _uploadToCloudinary(
+      signed: signed,
+      file: file,
+    );
 
-    final confirmResponse = await http.post(
-      Uri.parse('$_baseUrl/documents/confirm-upload'),
-      headers: authHeaders,
-      body: jsonEncode({
+    final confirmResponse = await _apiClient.post(
+      '/documents/confirm-upload',
+      body: {
         'caseId': caseId,
         'docId': signed['docId'],
         'docType': docTypeApiValue,
         'publicId': actualPublicId,
-      }),
+      },
     );
     if (confirmResponse.statusCode != 200) {
       throw DocumentUploadException(_readableError(confirmResponse));
@@ -81,15 +75,19 @@ class DocumentUploadService {
   }
 
   /// Returns Cloudinary's actual assigned public_id (not a URL — see
-  /// confirm-upload's comment on ConfirmUploadRequest for why).
+  /// confirm-upload's comment on ConfirmUploadRequest for why). Goes
+  /// straight to Cloudinary, not through ApiClient/our backend — this
+  /// request carries no access token at all, only the signature the
+  /// backend minted for it.
   Future<String> _uploadToCloudinary({
     required Map<String, dynamic> signed,
     required PlatformFile file,
   }) async {
     final cloudName = signed['cloudName'] as String;
     final resourceType = signed['resourceType'] as String;
-    final uploadUri =
-        Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/$resourceType/upload');
+    final uploadUri = Uri.parse(
+      'https://api.cloudinary.com/v1_1/$cloudName/$resourceType/upload',
+    );
 
     final request = http.MultipartRequest('POST', uploadUri)
       ..fields['api_key'] = signed['apiKey'] as String
@@ -107,12 +105,16 @@ class DocumentUploadService {
     } catch (e) {
       throw DocumentUploadException('Selected file could not be read: $e');
     }
-    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: file.name));
+    request.files.add(
+      http.MultipartFile.fromBytes('file', bytes, filename: file.name),
+    );
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
     if (response.statusCode != 200) {
-      throw DocumentUploadException('Cloudinary upload failed: ${response.body}');
+      throw DocumentUploadException(
+        'Cloudinary upload failed: ${response.body}',
+      );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;

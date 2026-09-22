@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
 import '../../core/screens/case_detail_screen.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/create_case_sheet.dart';
@@ -38,8 +38,8 @@ class _AdvocateHomeState extends State<AdvocateHome> {
   // every one of those would tear down and re-establish the Firestore
   // listener instead of just recomputing _filtered() over already-loaded
   // data.
-  late final Stream<List<Case>> _docketStream =
-      _firestoreService.advocateDocket(FirebaseAuth.instance.currentUser?.uid ?? '');
+  late final Stream<List<Case>> _docketStream = _firestoreService
+      .advocateDocket(AuthService().currentUser?.uid ?? '');
 
   @override
   void initState() {
@@ -59,9 +59,11 @@ class _AdvocateHomeState extends State<AdvocateHome> {
     var result = cases;
     if (_query.isNotEmpty) {
       result = result
-          .where((c) =>
-              c.undertrialName.toLowerCase().contains(_query) ||
-              c.firNumber.toLowerCase().contains(_query))
+          .where(
+            (c) =>
+                c.undertrialName.toLowerCase().contains(_query) ||
+                c.firNumber.toLowerCase().contains(_query),
+          )
           .toList();
     }
     switch (_filterIndex) {
@@ -78,15 +80,17 @@ class _AdvocateHomeState extends State<AdvocateHome> {
   Future<void> _createCase(BuildContext context) async {
     final caseId = await openCreateCaseSheet(context);
     if (caseId == null || !context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: caseId)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: caseId)));
   }
 
   bool _isToday(DateTime? date) {
     if (date == null) return false;
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   bool _isWithinWeek(DateTime? date) {
@@ -115,7 +119,9 @@ class _AdvocateHomeState extends State<AdvocateHome> {
           const PortalSignOutButton(locale: 'en'),
         ],
       ),
-      floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
+      floatingActionButton: NyayMitraFab(
+        onPressed: () => showChatSheet(context),
+      ),
       body: StreamBuilder<List<Case>>(
         stream: _docketStream,
         builder: (context, snapshot) {
@@ -129,8 +135,12 @@ class _AdvocateHomeState extends State<AdvocateHome> {
           }
 
           final docket = snapshot.data ?? const <Case>[];
-          final hearingsThisWeek = docket.where((c) => _isWithinWeek(c.nextHearingDate)).length;
-          final casesAwaitingFirstDoc = docket.where((c) => c.documentCount == 0).length;
+          final hearingsThisWeek = docket
+              .where((c) => _isWithinWeek(c.nextHearingDate))
+              .length;
+          final casesAwaitingFirstDoc = docket
+              .where((c) => c.documentCount == 0)
+              .length;
           final visible = _filtered(docket);
 
           return ListView(
@@ -181,7 +191,10 @@ class _AdvocateHomeState extends State<AdvocateHome> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Assigned Cases', style: AppTextStyles.portalTitle),
+                  const Text(
+                    'Assigned Cases',
+                    style: AppTextStyles.portalTitle,
+                  ),
                   TextButton.icon(
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('New Case'),
@@ -193,7 +206,10 @@ class _AdvocateHomeState extends State<AdvocateHome> {
               if (visible.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text('No cases match.', style: AppTextStyles.cardSubtitle),
+                  child: Text(
+                    'No cases match.',
+                    style: AppTextStyles.cardSubtitle,
+                  ),
                 )
               else
                 for (final theCase in visible) _CaseListItem(theCase: theCase),
@@ -212,10 +228,15 @@ class _CaseListItem extends StatelessWidget {
   final Case theCase;
 
   String get _initials {
-    final parts = theCase.undertrialName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = theCase.undertrialName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
+    return (parts.first.substring(0, 1) + parts[1].substring(0, 1))
+        .toUpperCase();
   }
 
   StatusTone get _tone {
@@ -236,7 +257,9 @@ class _CaseListItem extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: theCase.id)),
+          MaterialPageRoute(
+            builder: (_) => CaseDetailScreen(caseId: theCase.id),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -265,12 +288,18 @@ class _CaseListItem extends StatelessWidget {
                     Row(
                       children: [
                         StatusBadge(
-                          label: theCase.stageLabel.isEmpty ? theCase.stage : theCase.stageLabel,
+                          label: theCase.stageLabel.isEmpty
+                              ? theCase.stage
+                              : theCase.stageLabel,
                           tone: _tone,
                         ),
                         const Spacer(),
                         if (theCase.nextHearingDate != null) ...[
-                          const Icon(Icons.calendar_today, size: 13, color: AppColors.inkMuted),
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 13,
+                            color: AppColors.inkMuted,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             _dateFormat.format(theCase.nextHearingDate!),

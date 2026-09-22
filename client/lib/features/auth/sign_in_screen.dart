@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services/auth_service.dart';
@@ -39,9 +38,12 @@ class _SignInScreenState extends State<SignInScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-      // RootRouter's authStateChanges listener takes it from here.
-    } on FirebaseAuthException {
-      setState(() => _errorMessage = 'Invalid email or password.');
+      // RootRouter's userChanges listener takes it from here.
+    } on AuthServiceException catch (e) {
+      // e.message is already the backend's own detail text (e.g.
+      // "Invalid email or password") — no need to guess a nicer string
+      // client-side when the server already returns a display-ready one.
+      setState(() => _errorMessage = e.message);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -73,8 +75,8 @@ class _SignInScreenState extends State<SignInScreen> {
                     decoration: const InputDecoration(labelText: 'Email'),
                     validator: (value) =>
                         (value == null || value.trim().isEmpty)
-                            ? 'Enter your email'
-                            : null,
+                        ? 'Enter your email'
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -90,7 +92,9 @@ class _SignInScreenState extends State<SignInScreen> {
                     const SizedBox(height: 16),
                     Text(
                       _errorMessage!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),

@@ -48,7 +48,9 @@ class UserProfile {
     this.preferredLanguage,
   });
 
-  factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory UserProfile.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? const {};
     return UserProfile(
       uid: doc.id,
@@ -56,6 +58,19 @@ class UserProfile {
       displayName: data['displayName'] as String? ?? '',
       phone: data['phone'] as String?,
       preferredLanguage: data['preferredLanguage'] as String?,
+    );
+  }
+
+  /// GET /me's response shape (step 5 of the Postgres migration,
+  /// NyayMitra.md) — the only source of "my own profile" now; there is
+  /// no per-uid profile fetch anymore, only ever the caller's own.
+  factory UserProfile.fromApi(Map<String, dynamic> json) {
+    return UserProfile(
+      uid: json['id'] as String,
+      role: parseUserRole(json['role'] as String?),
+      displayName: json['displayName'] as String? ?? '',
+      phone: json['phone'] as String?,
+      preferredLanguage: json['preferredLanguage'] as String?,
     );
   }
 

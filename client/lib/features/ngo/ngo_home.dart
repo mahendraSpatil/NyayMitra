@@ -1,8 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/task.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/filter_chip_row.dart';
@@ -33,8 +33,9 @@ class _NgoHomeState extends State<NgoHome> {
   // Created once, not inside build() — see the same note on AdvocateHome's
   // _docketStream: a fresh Stream instance per build() makes StreamBuilder
   // tear down and re-subscribe on every keystroke/filter tap.
-  late final Stream<List<Task>> _taskStream =
-      _firestoreService.ngoTaskList(FirebaseAuth.instance.currentUser?.uid ?? '');
+  late final Stream<List<Task>> _taskStream = _firestoreService.ngoTaskList(
+    AuthService().currentUser?.uid ?? '',
+  );
 
   @override
   void initState() {
@@ -54,16 +55,20 @@ class _NgoHomeState extends State<NgoHome> {
     var result = tasks;
     if (_query.isNotEmpty) {
       result = result
-          .where((t) =>
-              t.description.toLowerCase().contains(_query) ||
-              t.taskType.taskCategoryLabel.toLowerCase().contains(_query))
+          .where(
+            (t) =>
+                t.description.toLowerCase().contains(_query) ||
+                t.taskType.taskCategoryLabel.toLowerCase().contains(_query),
+          )
           .toList();
     }
     switch (_filterIndex) {
       case 1:
         result = result.where((t) => t.priority == 'high').toList();
       case 2:
-        result = result.where((t) => t.taskType == 'verification_visit').toList();
+        result = result
+            .where((t) => t.taskType == 'verification_visit')
+            .toList();
       case 3:
         result = result.where((t) => t.taskType == 'translation').toList();
     }
@@ -90,7 +95,10 @@ class _NgoHomeState extends State<NgoHome> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('NGO Portal', style: AppTextStyles.portalTitle),
-            Text('Undertrial Support & Legal Aid', style: AppTextStyles.portalSubtitle),
+            Text(
+              'Undertrial Support & Legal Aid',
+              style: AppTextStyles.portalSubtitle,
+            ),
           ],
         ),
         actions: [
@@ -106,7 +114,9 @@ class _NgoHomeState extends State<NgoHome> {
           const PortalSignOutButton(locale: 'en'),
         ],
       ),
-      floatingActionButton: NyayMitraFab(onPressed: () => showChatSheet(context)),
+      floatingActionButton: NyayMitraFab(
+        onPressed: () => showChatSheet(context),
+      ),
       body: StreamBuilder<List<Task>>(
         stream: _taskStream,
         builder: (context, snapshot) {
@@ -115,15 +125,21 @@ class _NgoHomeState extends State<NgoHome> {
           }
           if (snapshot.hasError) {
             return Center(
-              child: Text('Could not load tasks: ${snapshot.error}', style: AppTextStyles.body),
+              child: Text(
+                'Could not load tasks: ${snapshot.error}',
+                style: AppTextStyles.body,
+              ),
             );
           }
 
           final tasks = snapshot.data ?? const <Task>[];
           final assignedCases = tasks.map((t) => t.caseId).toSet().length;
-          final fieldVisitsDue =
-              tasks.where((t) => t.taskType == 'verification_visit' && !t.completed).length;
-          final highPriorityCount = tasks.where((t) => t.priority == 'high' && !t.completed).length;
+          final fieldVisitsDue = tasks
+              .where((t) => t.taskType == 'verification_visit' && !t.completed)
+              .length;
+          final highPriorityCount = tasks
+              .where((t) => t.priority == 'high' && !t.completed)
+              .length;
           final visible = _filtered(tasks);
 
           return ListView(
@@ -165,10 +181,15 @@ class _NgoHomeState extends State<NgoHome> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Pending Field & Legal Tasks', style: AppTextStyles.portalTitle),
+                  const Text(
+                    'Pending Field & Legal Tasks',
+                    style: AppTextStyles.portalTitle,
+                  ),
                   Text(
                     '$highPriorityCount High Priority',
-                    style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.accentRed),
+                    style: AppTextStyles.cardSubtitle.copyWith(
+                      color: AppColors.accentRed,
+                    ),
                   ),
                 ],
               ),
@@ -176,11 +197,17 @@ class _NgoHomeState extends State<NgoHome> {
               if (visible.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text('No tasks match.', style: AppTextStyles.cardSubtitle),
+                  child: Text(
+                    'No tasks match.',
+                    style: AppTextStyles.cardSubtitle,
+                  ),
                 )
               else
                 for (final task in visible)
-                  _TaskListItem(task: task, onMarkComplete: () => _markComplete(context, task)),
+                  _TaskListItem(
+                    task: task,
+                    onMarkComplete: () => _markComplete(context, task),
+                  ),
               const SizedBox(height: 80),
             ],
           );
@@ -255,7 +282,10 @@ class _TaskListItem extends StatelessWidget {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Icon(_icon, color: iconColor, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -265,7 +295,10 @@ class _TaskListItem extends StatelessWidget {
                     children: [
                       Text(task.description, style: AppTextStyles.cardTitle),
                       const SizedBox(height: 2),
-                      Text(task.taskType.taskCategoryLabel, style: AppTextStyles.cardSubtitle),
+                      Text(
+                        task.taskType.taskCategoryLabel,
+                        style: AppTextStyles.cardSubtitle,
+                      ),
                     ],
                   ),
                 ),
@@ -277,7 +310,11 @@ class _TaskListItem extends StatelessWidget {
             if (task.completed)
               Row(
                 children: [
-                  const Icon(Icons.check_circle, size: 18, color: AppColors.success),
+                  const Icon(
+                    Icons.check_circle,
+                    size: 18,
+                    color: AppColors.success,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     task.completedAt == null
@@ -292,11 +329,22 @@ class _TaskListItem extends StatelessWidget {
                 onTap: onMarkComplete,
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle_outline, size: 18, color: AppColors.inkMuted),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: AppColors.inkMuted,
+                    ),
                     const SizedBox(width: 8),
-                    const Text('Mark Complete', style: AppTextStyles.cardSubtitle),
+                    const Text(
+                      'Mark Complete',
+                      style: AppTextStyles.cardSubtitle,
+                    ),
                     const Spacer(),
-                    const Icon(Icons.chevron_right, size: 18, color: AppColors.inkMuted),
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: AppColors.inkMuted,
+                    ),
                   ],
                 ),
               ),

@@ -117,7 +117,9 @@ class CaseDocument {
     this.statutes = const [],
   });
 
-  factory CaseDocument.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory CaseDocument.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data() ?? const {};
     final rawStatutes = data['statutes'] as List<dynamic>? ?? const [];
     final uploadedAtValue = data['uploadedAt'];
@@ -126,9 +128,32 @@ class CaseDocument {
       docType: _docTypeFromString(data['docType'] as String?),
       storagePath: data['storagePath'] as String?,
       uploadedBy: data['uploadedBy'] as String?,
-      uploadedAt: uploadedAtValue is Timestamp ? uploadedAtValue.toDate() : null,
+      uploadedAt: uploadedAtValue is Timestamp
+          ? uploadedAtValue.toDate()
+          : null,
       ocrStatus: data['ocrStatus'] as String?,
       rawText: data['rawText'] as String?,
+      statutes: rawStatutes
+          .map((e) => Statute.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
+
+  /// GET /api/v2/cases/{caseId}/documents — field names match
+  /// app/models/v2/document.py's DocumentItem exactly.
+  factory CaseDocument.fromApi(Map<String, dynamic> json) {
+    final rawStatutes = json['statutes'] as List<dynamic>? ?? const [];
+    final uploadedAtValue = json['uploadedAt'] as String?;
+    return CaseDocument(
+      id: json['id'] as String,
+      docType: _docTypeFromString(json['docType'] as String?),
+      storagePath: json['storagePath'] as String?,
+      uploadedBy: json['uploadedBy'] as String?,
+      uploadedAt: uploadedAtValue == null
+          ? null
+          : DateTime.tryParse(uploadedAtValue),
+      ocrStatus: json['ocrStatus'] as String?,
+      rawText: json['rawText'] as String?,
       statutes: rawStatutes
           .map((e) => Statute.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),

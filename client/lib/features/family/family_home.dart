@@ -1,10 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
-import '../../core/models/user_profile.dart';
 import '../../core/screens/case_detail_screen.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/case_timeline.dart';
@@ -31,143 +30,165 @@ class _FamilyHomeState extends State<FamilyHome> {
   // Created once, not inside build() — see the same note on
   // AdvocateHome/NgoHome: a fresh Stream instance per build() makes
   // StreamBuilder tear down and re-subscribe unnecessarily.
-  late final String _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-  late final Stream<UserProfile?> _profileStream = _firestoreService.userProfile(_uid);
+  late final String _uid = AuthService().currentUser?.uid ?? '';
 
   // Server-side scoped by familyUids — not a broader query filtered
   // client-side. A family user can only ever match cases that list their
   // own uid; there is no path here that reads other families' cases.
-  late final Stream<List<Case>> _casesStream = _firestoreService.familyCases(_uid);
+  late final Stream<List<Case>> _casesStream = _firestoreService.familyCases(
+    _uid,
+  );
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<UserProfile?>(
-      stream: _profileStream,
-      builder: (context, profileSnapshot) {
-        final locale = resolveFamilyLocale(profileSnapshot.data?.preferredLanguage);
-        final strings = FamilyStrings(locale);
+    // AuthService().currentUser, not a stream: /me is the only source of
+    // "my own profile" now (step 5 of the Postgres migration,
+    // NyayMitra.md), already loaded by the time RootRouter ever shows
+    // this screen (it only does once AuthService reports a signed-in
+    // user), so there's nothing to wait on here the way the old
+    // Firestore-backed profile stream needed a StreamBuilder for.
+    final locale = resolveFamilyLocale(
+      AuthService().currentUser?.preferredLanguage,
+    );
+    final strings = FamilyStrings(locale);
 
-        // The whole Scaffold (not just the body) is built inside the
-        // cases StreamBuilder below: the FAB needs theCase.id to open a
-        // case-scoped chat, and that's only available once the cases
-        // stream has actually delivered data.
-        return StreamBuilder<List<Case>>(
-          stream: _casesStream,
-          builder: (context, casesSnapshot) {
-            if (casesSnapshot.connectionState == ConnectionState.waiting) {
-              return _scaffold(
-                context: context,
-                strings: strings,
-                locale: locale,
-                caseId: null,
-                body: const Center(child: CircularProgressIndicator()),
-              );
-            }
-            if (casesSnapshot.hasError) {
-              return _scaffold(
-                context: context,
-                strings: strings,
-                locale: locale,
-                caseId: null,
-                body: Center(
-                  child: Text('${casesSnapshot.error}', style: AppTextStyles.body),
-                ),
-              );
-            }
+    // The whole Scaffold (not just the body) is built inside the cases
+    // StreamBuilder below: the FAB needs theCase.id to open a
+    // case-scoped chat, and that's only available once the cases stream
+    // has actually delivered data.
+    return StreamBuilder<List<Case>>(
+      stream: _casesStream,
+      builder: (context, casesSnapshot) {
+        if (casesSnapshot.connectionState == ConnectionState.waiting) {
+          return _scaffold(
+            context: context,
+            strings: strings,
+            locale: locale,
+            caseId: null,
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (casesSnapshot.hasError) {
+          return _scaffold(
+            context: context,
+            strings: strings,
+            locale: locale,
+            caseId: null,
+            body: Center(
+              child: Text('${casesSnapshot.error}', style: AppTextStyles.body),
+            ),
+          );
+        }
 
-            final cases = casesSnapshot.data ?? const <Case>[];
-            if (cases.isEmpty) {
-              return _scaffold(
-                context: context,
-                strings: strings,
-                locale: locale,
-                caseId: null,
-                body: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(strings.noCaseFound, style: AppTextStyles.body),
-                        const SizedBox(height: 20),
-                        FilledButton(
-                          onPressed: () async {
-                            await openRedeemInviteSheet(context, strings: strings);
-                          },
-                          child: Text(strings.joinCaseButtonLabel),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton(
-                          onPressed: () async {
-                            await openCreateOwnCaseSheet(context, strings: strings);
-                          },
-                          child: Text(strings.createOwnCaseButtonLabel),
-                        ),
-                      ],
+        final cases = casesSnapshot.data ?? const <Case>[];
+        if (cases.isEmpty) {
+          return _scaffold(
+            context: context,
+            strings: strings,
+            locale: locale,
+            caseId: null,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(strings.noCaseFound, style: AppTextStyles.body),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: () async {
+                        await openRedeemInviteSheet(context, strings: strings);
+                      },
+                      child: Text(strings.joinCaseButtonLabel),
                     ),
-                  ),
-                ),
-              );
-            }
-
-            // Single-case layout, matching the design: a family account
-            // maps to one undertrial's case in practice, and nothing
-            // here asks for a multi-case switcher.
-            final theCase = cases.first;
-            final isSelfManaged = theCase.ownerType == 'family' && theCase.createdBy == _uid;
-
-            return _scaffold(
-              context: context,
-              strings: strings,
-              locale: locale,
-              caseId: theCase.id,
-              body: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _FamilyStatRow(strings: strings, locale: locale, theCase: theCase),
-                  const SizedBox(height: 20),
-                  _CaseSummaryCard(strings: strings, locale: locale, theCase: theCase),
-                  const SizedBox(height: 24),
-                  Text(strings.actionsSectionHeader, style: AppTextStyles.portalTitle),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.upload_file),
-                    label: Text(strings.uploadButtonLabel),
-                    onPressed: () => openUploadDocumentSheet(context, caseId: theCase.id),
-                  ),
-                  if (isSelfManaged) ...[
                     const SizedBox(height: 12),
-                    // Only for a case this family user created themselves
-                    // — hearings and invites for an advocate's case are
-                    // the advocate's to manage, this is the "no lawyer
-                    // yet" path from CreateOwnCaseSheet catching up to
-                    // itself: someone has to be able to add hearings and
-                    // invite the rest of the family, and here nobody but
-                    // the creator can be that person.
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.event_note),
-                      label: const Text('Manage Hearings & Invites'),
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CaseDetailScreen(caseId: theCase.id),
-                        ),
-                      ),
+                    OutlinedButton(
+                      onPressed: () async {
+                        await openCreateOwnCaseSheet(context, strings: strings);
+                      },
+                      child: Text(strings.createOwnCaseButtonLabel),
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  Text(strings.caseTimelineSectionHeader, style: AppTextStyles.portalTitle),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: CaseTimeline(entries: _timelineEntries(theCase, locale)),
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Single-case layout, matching the design: a family account
+        // maps to one undertrial's case in practice, and nothing
+        // here asks for a multi-case switcher.
+        final theCase = cases.first;
+        final isSelfManaged =
+            theCase.ownerType == 'family' && theCase.createdBy == _uid;
+
+        return _scaffold(
+          context: context,
+          strings: strings,
+          locale: locale,
+          caseId: theCase.id,
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _FamilyStatRow(
+                strings: strings,
+                locale: locale,
+                theCase: theCase,
+              ),
+              const SizedBox(height: 20),
+              _CaseSummaryCard(
+                strings: strings,
+                locale: locale,
+                theCase: theCase,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                strings.actionsSectionHeader,
+                style: AppTextStyles.portalTitle,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: const Icon(Icons.upload_file),
+                label: Text(strings.uploadButtonLabel),
+                onPressed: () =>
+                    openUploadDocumentSheet(context, caseId: theCase.id),
+              ),
+              if (isSelfManaged) ...[
+                const SizedBox(height: 12),
+                // Only for a case this family user created themselves
+                // — hearings and invites for an advocate's case are
+                // the advocate's to manage, this is the "no lawyer
+                // yet" path from CreateOwnCaseSheet catching up to
+                // itself: someone has to be able to add hearings and
+                // invite the rest of the family, and here nobody but
+                // the creator can be that person.
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.event_note),
+                  label: const Text('Manage Hearings & Invites'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => CaseDetailScreen(caseId: theCase.id),
                     ),
                   ),
-                  const SizedBox(height: 80),
-                ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              Text(
+                strings.caseTimelineSectionHeader,
+                style: AppTextStyles.portalTitle,
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: CaseTimeline(
+                    entries: _timelineEntries(theCase, locale),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 80),
+            ],
+          ),
         );
       },
     );
@@ -206,17 +227,23 @@ class _FamilyHomeState extends State<FamilyHome> {
   List<CaseTimelineEntry> _timelineEntries(Case theCase, String locale) {
     final dateFormat = DateFormat('d MMM yyyy', locale);
     return theCase.timeline
-        .map((entry) => CaseTimelineEntry(
-              title: entry.title,
-              dateLabel: entry.date == null ? '' : dateFormat.format(entry.date!),
-              done: entry.done,
-            ))
+        .map(
+          (entry) => CaseTimelineEntry(
+            title: entry.title,
+            dateLabel: entry.date == null ? '' : dateFormat.format(entry.date!),
+            done: entry.done,
+          ),
+        )
         .toList();
   }
 }
 
 class _FamilyStatRow extends StatelessWidget {
-  const _FamilyStatRow({required this.strings, required this.locale, required this.theCase});
+  const _FamilyStatRow({
+    required this.strings,
+    required this.locale,
+    required this.theCase,
+  });
 
   final FamilyStrings strings;
   final String locale;
@@ -244,7 +271,9 @@ class _FamilyStatRow extends StatelessWidget {
           child: StatCard(
             icon: Icons.balance,
             accentColor: AppColors.ink,
-            value: theCase.stageLabel.isEmpty ? theCase.stage : theCase.stageLabel,
+            value: theCase.stageLabel.isEmpty
+                ? theCase.stage
+                : theCase.stageLabel,
             caption: strings.statCurrentStage,
           ),
         ),
@@ -263,7 +292,11 @@ class _FamilyStatRow extends StatelessWidget {
 }
 
 class _CaseSummaryCard extends StatelessWidget {
-  const _CaseSummaryCard({required this.strings, required this.locale, required this.theCase});
+  const _CaseSummaryCard({
+    required this.strings,
+    required this.locale,
+    required this.theCase,
+  });
 
   final FamilyStrings strings;
   final String locale;
@@ -291,7 +324,10 @@ class _CaseSummaryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(theCase.undertrialName, style: AppTextStyles.cardTitle),
+                      Text(
+                        theCase.undertrialName,
+                        style: AppTextStyles.cardTitle,
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         'FIR: ${theCase.firNumber} | ${theCase.court}',
@@ -300,7 +336,10 @@ class _CaseSummaryCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                StatusBadge(label: strings.activeCaseBadge, tone: StatusTone.success),
+                StatusBadge(
+                  label: strings.activeCaseBadge,
+                  tone: StatusTone.success,
+                ),
               ],
             ),
             const Divider(height: 28),
@@ -311,9 +350,15 @@ class _CaseSummaryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(strings.legalRepresentativeLabel, style: AppTextStyles.cardSubtitle),
+                      Text(
+                        strings.legalRepresentativeLabel,
+                        style: AppTextStyles.cardSubtitle,
+                      ),
                       const SizedBox(height: 2),
-                      Text(theCase.advocateName, style: AppTextStyles.cardTitle),
+                      Text(
+                        theCase.advocateName,
+                        style: AppTextStyles.cardTitle,
+                      ),
                     ],
                   ),
                 ),
@@ -346,7 +391,10 @@ class _HearingPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: AppColors.ink, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

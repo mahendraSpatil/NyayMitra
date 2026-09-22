@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/case.dart';
 import '../models/case_document.dart';
 import '../models/hearing.dart';
+import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/invite_service.dart';
 import '../theme/app_theme.dart';
@@ -42,18 +42,20 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   // AdvocateHome/NgoHome/FamilyHome: a fresh Stream instance per build()
   // makes StreamBuilder tear down and re-subscribe on every rebuild,
   // including the several rebuilds a route-push animation alone fires.
-  late final Stream<Case?> _caseStream = _firestoreService.caseById(widget.caseId);
-  late final Stream<List<CaseDocument>> _documentsStream =
-      _firestoreService.caseDocuments(widget.caseId);
-  late final Stream<List<Hearing>> _hearingsStream =
-      _firestoreService.caseHearings(widget.caseId);
+  late final Stream<Case?> _caseStream = _firestoreService.caseById(
+    widget.caseId,
+  );
+  late final Stream<List<CaseDocument>> _documentsStream = _firestoreService
+      .caseDocuments(widget.caseId);
+  late final Stream<List<Hearing>> _hearingsStream = _firestoreService
+      .caseHearings(widget.caseId);
 
   // Mirrors backend/app/services/case_access.py's is_case_manager exactly
   // — the advocate, an assigned NGO worker, or (for a self-managed
   // family case) whoever created it. A family member who only joined via
   // invite is a member, not a manager, same as on the backend.
   bool _isManager(Case theCase) {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = AuthService().currentUser?.uid;
     if (uid == null) return false;
     if (theCase.advocateUid == uid) return true;
     if (theCase.ngoUids.contains(uid)) return true;
@@ -89,7 +91,8 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Clipboard.setData(ClipboardData(text: invite.code)),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: invite.code)),
               child: const Text('Copy'),
             ),
             TextButton(
@@ -120,7 +123,9 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
 
           final theCase = caseSnapshot.data;
           if (theCase == null) {
-            return const Center(child: Text('Case not found', style: AppTextStyles.body));
+            return const Center(
+              child: Text('Case not found', style: AppTextStyles.body),
+            );
           }
           final isManager = _isManager(theCase);
 
@@ -132,7 +137,8 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               FilledButton.icon(
                 icon: const Icon(Icons.upload_file),
                 label: const Text('Upload Case Document'),
-                onPressed: () => openUploadDocumentSheet(context, caseId: widget.caseId),
+                onPressed: () =>
+                    openUploadDocumentSheet(context, caseId: widget.caseId),
               ),
               if (isManager) ...[
                 const SizedBox(height: 12),
@@ -151,7 +157,8 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                     TextButton.icon(
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Add'),
-                      onPressed: () => openHearingFormSheet(context, caseId: widget.caseId),
+                      onPressed: () =>
+                          openHearingFormSheet(context, caseId: widget.caseId),
                     ),
                 ],
               ),
@@ -159,7 +166,8 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               StreamBuilder<List<Hearing>>(
                 stream: _hearingsStream,
                 builder: (context, hearingsSnapshot) {
-                  if (hearingsSnapshot.connectionState == ConnectionState.waiting) {
+                  if (hearingsSnapshot.connectionState ==
+                      ConnectionState.waiting) {
                     return const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(child: CircularProgressIndicator()),
@@ -168,12 +176,17 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   if (hearingsSnapshot.hasError) {
                     return Text(
                       'Could not load hearings: ${hearingsSnapshot.error}',
-                      style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.accentRed),
+                      style: AppTextStyles.cardSubtitle.copyWith(
+                        color: AppColors.accentRed,
+                      ),
                     );
                   }
                   final hearings = hearingsSnapshot.data ?? const <Hearing>[];
                   if (hearings.isEmpty) {
-                    return const Text('No hearings recorded yet.', style: AppTextStyles.cardSubtitle);
+                    return const Text(
+                      'No hearings recorded yet.',
+                      style: AppTextStyles.cardSubtitle,
+                    );
                   }
                   return Column(
                     children: [
@@ -182,10 +195,10 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                           hearing: hearing,
                           onTap: isManager
                               ? () => openHearingFormSheet(
-                                    context,
-                                    caseId: widget.caseId,
-                                    existing: hearing,
-                                  )
+                                  context,
+                                  caseId: widget.caseId,
+                                  existing: hearing,
+                                )
                               : null,
                         ),
                     ],
@@ -212,16 +225,22 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   if (docsSnapshot.hasError) {
                     return Text(
                       'Could not load documents: ${docsSnapshot.error}',
-                      style: AppTextStyles.cardSubtitle.copyWith(color: AppColors.accentRed),
+                      style: AppTextStyles.cardSubtitle.copyWith(
+                        color: AppColors.accentRed,
+                      ),
                     );
                   }
                   final documents = docsSnapshot.data ?? const <CaseDocument>[];
                   if (documents.isEmpty) {
-                    return const Text('No documents yet.', style: AppTextStyles.cardSubtitle);
+                    return const Text(
+                      'No documents yet.',
+                      style: AppTextStyles.cardSubtitle,
+                    );
                   }
                   return Column(
                     children: [
-                      for (final document in documents) _DocumentTile(document: document),
+                      for (final document in documents)
+                        _DocumentTile(document: document),
                     ],
                   );
                 },
@@ -250,10 +269,15 @@ class _CaseInfoCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(theCase.undertrialName, style: AppTextStyles.portalTitle),
+                  child: Text(
+                    theCase.undertrialName,
+                    style: AppTextStyles.portalTitle,
+                  ),
                 ),
                 StatusBadge(
-                  label: theCase.stageLabel.isEmpty ? theCase.stage : theCase.stageLabel,
+                  label: theCase.stageLabel.isEmpty
+                      ? theCase.stage
+                      : theCase.stageLabel,
                   tone: _tone(theCase.stageTone),
                 ),
               ],
@@ -267,7 +291,9 @@ class _CaseInfoCard extends StatelessWidget {
             Text('Advocate', style: AppTextStyles.cardSubtitle),
             const SizedBox(height: 2),
             Text(
-              theCase.advocateName.isEmpty ? 'No advocate attached' : theCase.advocateName,
+              theCase.advocateName.isEmpty
+                  ? 'No advocate attached'
+                  : theCase.advocateName,
               style: AppTextStyles.cardTitle,
             ),
             const SizedBox(height: 12),
@@ -323,7 +349,9 @@ class _HearingTile extends StatelessWidget {
         leading: const Icon(Icons.gavel, color: AppColors.inkMuted),
         title: Text(
           hearing.purpose.isEmpty
-              ? (hearing.date == null ? 'Hearing' : _dateFormat.format(hearing.date!))
+              ? (hearing.date == null
+                    ? 'Hearing'
+                    : _dateFormat.format(hearing.date!))
               : hearing.purpose,
           style: AppTextStyles.cardTitle,
         ),
@@ -350,7 +378,10 @@ class _DocumentTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        leading: const Icon(Icons.description_outlined, color: AppColors.inkMuted),
+        leading: const Icon(
+          Icons.description_outlined,
+          color: AppColors.inkMuted,
+        ),
         title: Text(document.docType.label, style: AppTextStyles.cardTitle),
         subtitle: Text(
           document.uploadedAt == null

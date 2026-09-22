@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -33,3 +35,18 @@ class ConfirmUploadResponse(BaseModel):
 class DownloadUrlResponse(BaseModel):
     url: str
     expiresAt: int
+
+
+class DocumentItem(BaseModel):
+    """Matches client/lib/core/models/case_document.dart's
+    CaseDocument.fromFirestore field names.
+    """
+
+    id: str
+    docType: str
+    storagePath: str | None
+    uploadedBy: str | None
+    uploadedAt: datetime | None
+    ocrStatus: str | None
+    rawText: str | None
+    statutes: list = []

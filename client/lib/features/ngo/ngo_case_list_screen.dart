@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
 import '../../core/screens/case_detail_screen.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/create_case_sheet.dart';
@@ -25,15 +25,16 @@ class NgoCaseListScreen extends StatefulWidget {
 class _NgoCaseListScreenState extends State<NgoCaseListScreen> {
   final _firestoreService = FirestoreService();
 
-  late final Stream<List<Case>> _casesStream =
-      _firestoreService.ngoCases(FirebaseAuth.instance.currentUser?.uid ?? '');
+  late final Stream<List<Case>> _casesStream = _firestoreService.ngoCases(
+    AuthService().currentUser?.uid ?? '',
+  );
 
   Future<void> _createCase(BuildContext context) async {
     final caseId = await openCreateCaseSheet(context);
     if (caseId == null || !context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: caseId)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: caseId)));
   }
 
   @override
@@ -57,7 +58,10 @@ class _NgoCaseListScreenState extends State<NgoCaseListScreen> {
           }
           if (snapshot.hasError) {
             return Center(
-              child: Text('Could not load cases: ${snapshot.error}', style: AppTextStyles.body),
+              child: Text(
+                'Could not load cases: ${snapshot.error}',
+                style: AppTextStyles.body,
+              ),
             );
           }
 
@@ -109,21 +113,34 @@ class _CaseListItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CaseDetailScreen(caseId: theCase.id)),
+          MaterialPageRoute(
+            builder: (_) => CaseDetailScreen(caseId: theCase.id),
+          ),
         ),
-        title: Text('State vs. ${theCase.undertrialName}', style: AppTextStyles.cardTitle),
-        subtitle: Text('FIR: ${theCase.firNumber} | ${theCase.court}', style: AppTextStyles.cardSubtitle),
+        title: Text(
+          'State vs. ${theCase.undertrialName}',
+          style: AppTextStyles.cardTitle,
+        ),
+        subtitle: Text(
+          'FIR: ${theCase.firNumber} | ${theCase.court}',
+          style: AppTextStyles.cardSubtitle,
+        ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             StatusBadge(
-              label: theCase.stageLabel.isEmpty ? theCase.stage : theCase.stageLabel,
+              label: theCase.stageLabel.isEmpty
+                  ? theCase.stage
+                  : theCase.stageLabel,
               tone: _tone,
             ),
             if (theCase.nextHearingDate != null) ...[
               const SizedBox(height: 4),
-              Text(_dateFormat.format(theCase.nextHearingDate!), style: AppTextStyles.cardSubtitle),
+              Text(
+                _dateFormat.format(theCase.nextHearingDate!),
+                style: AppTextStyles.cardSubtitle,
+              ),
             ],
           ],
         ),

@@ -1,12 +1,8 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
-/// TODO: same dev-only placeholder as the other *_service.dart files'
-/// _baseUrl — needs real build-time configuration before this reaches
-/// any device but this machine.
-const _baseUrl = 'http://localhost:8000';
+import 'api_client.dart';
 
 class InviteServiceException implements Exception {
   InviteServiceException(this.message);
@@ -24,30 +20,16 @@ class GeneratedInvite {
   final DateTime expiresAt;
 }
 
-/// Invite generation and redemption both go through the backend —
-/// firestore.rules denies all client access to invites/ outright, so
-/// there is no direct-Firestore path here the way there is for reads
-/// elsewhere in this app.
+/// Invite generation and redemption both go through the backend — there
+/// is no client write path to invites/invite_attempts at all in this
+/// schema.
 class InviteService {
-  Future<Map<String, String>> _authHeaders() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw StateError('InviteService called with no signed-in user');
-    }
-    final token = await user.getIdToken();
-    return {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
-  }
+  final _apiClient = ApiClient.instance;
 
   /// Only a case manager can call this successfully — the backend
   /// re-checks that independently, this is not a client-side gate.
   Future<GeneratedInvite> generateInvite(String caseId) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/cases/$caseId/invites'),
-      headers: await _authHeaders(),
-    );
+    final response = await _apiClient.post('/cases/$caseId/invites');
     if (response.statusCode != 200) {
       throw InviteServiceException(_readableError(response));
     }
@@ -60,10 +42,9 @@ class InviteService {
 
   /// Returns the caseId the code granted access to.
   Future<String> redeemInvite(String code) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/invites/redeem'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'code': code}),
+    final response = await _apiClient.post(
+      '/invites/redeem',
+      body: {'code': code},
     );
     if (response.statusCode != 200) {
       throw InviteServiceException(_readableError(response));

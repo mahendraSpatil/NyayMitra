@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/auth_service.dart';
 
-/// Shown when a signed-in user's ID token carries no `role` claim. Reached
-/// only after a forced token refresh (see RootRouter), so this genuinely
-/// means the account hasn't been provisioned — not a stale-token false
-/// positive.
+/// Shown when a signed-in user's GET /me response carries no recognized
+/// `role` (see RootRouter) — the backend is the source of truth for role
+/// now, read fresh on every sign-in/session-restore, so this genuinely
+/// means the account hasn't been provisioned rather than a stale-token
+/// false positive.
 class NotProvisionedScreen extends StatelessWidget {
   const NotProvisionedScreen({super.key});
 

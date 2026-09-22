@@ -5,6 +5,7 @@ import cloudinary
 import cloudinary.utils
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...config import settings
@@ -14,6 +15,7 @@ from ...dependencies import CurrentUser, require_case_member, require_case_membe
 from ...models.v2.document import (
     ConfirmUploadRequest,
     ConfirmUploadResponse,
+    DocumentItem,
     DownloadUrlResponse,
     SignUploadRequest,
     SignUploadResponse,
@@ -113,6 +115,30 @@ async def confirm_upload(
     ws_manager.broadcast_case_sync(case_id, {"type": "documents_changed", "caseId": str(case_id)})
 
     return ConfirmUploadResponse(docId=payload.docId, ocrStatus=ocr_status, hasText=raw_text is not None)
+
+
+@router.get("/cases/{case_id}/documents", response_model=list[DocumentItem])
+def list_documents(
+    case_id: uuid.UUID,
+    current_user: CurrentUser = Depends(require_case_member),
+    db: Session = Depends(get_db),
+) -> list[DocumentItem]:
+    documents = db.scalars(
+        select(Document).where(Document.case_id == case_id).order_by(Document.uploaded_at.asc())
+    )
+    return [
+        DocumentItem(
+            id=str(d.id),
+            docType=d.doc_type,
+            storagePath=d.storage_path,
+            uploadedBy=str(d.uploaded_by),
+            uploadedAt=d.uploaded_at,
+            ocrStatus=d.ocr_status,
+            rawText=d.raw_text,
+            statutes=d.statutes,
+        )
+        for d in documents
+    ]
 
 
 @router.get("/documents/{case_id}/{doc_id}/download-url", response_model=DownloadUrlResponse)

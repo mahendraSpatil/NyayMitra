@@ -1,9 +1,7 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
-
 import '../../core/models/chat_message.dart' show CitedDocument;
+import '../../core/services/api_client.dart';
 
 /// One assistant reply from POST /chat, or the outcome of a failed call.
 class ChatReply {
@@ -20,37 +18,22 @@ class ChatReply {
   final List<CitedDocument> citedDocuments;
 }
 
-/// TODO: this base URL is a dev-only placeholder. Before this ships to any
-/// real device it needs real configuration (build-time --dart-define or
-/// similar), not a hardcoded localhost address — a phone can't reach
-/// "localhost" and mean this machine's backend.
-const _baseUrl = 'http://localhost:8000';
-
 class ChatService {
+  final _apiClient = ApiClient.instance;
+
   /// [caseId] is optional: the chatbot FAB is still portal-home-level for
   /// Advocate/NGO (no single "current case" there), so only callers that
   /// do have one unambiguous case in scope (Family Portal) pass it.
   Future<ChatReply> sendMessage(String message, {String? caseId}) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw StateError('sendMessage called with no signed-in user');
-    }
-
-    final token = await user.getIdToken();
-    final response = await http.post(
-      Uri.parse('$_baseUrl/chat'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'message': message,
-        if (caseId != null) 'caseId': caseId,
-      }),
+    final response = await _apiClient.post(
+      '/chat',
+      body: {'message': message, if (caseId != null) 'caseId': caseId},
     );
 
     if (response.statusCode != 200) {
-      throw ChatHttpException('Chat request failed (${response.statusCode}): ${response.body}');
+      throw ChatHttpException(
+        'Chat request failed (${response.statusCode}): ${response.body}',
+      );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;

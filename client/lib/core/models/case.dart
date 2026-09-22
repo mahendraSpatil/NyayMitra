@@ -28,6 +28,10 @@ String _stageToneToString(CaseStageTone tone) {
 DateTime? _dateFromValue(dynamic value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
+  // The API's JSON encodes datetimes as ISO 8601 strings — Firestore
+  // never sent a String here, only a Timestamp, so this branch is purely
+  // for Case.fromApi.
+  if (value is String) return DateTime.tryParse(value);
   return null;
 }
 
@@ -124,7 +128,48 @@ class Case {
       nextHearingDate: _dateFromValue(data['nextHearingDate']),
       documentCount: (data['documentCount'] as num?)?.toInt() ?? 0,
       timeline: rawTimeline
-          .map((e) => TimelineEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) => TimelineEntry.fromMap(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList(),
+    );
+  }
+
+  /// GET /api/v2/cases and GET /api/v2/cases/{caseId}'s response shape
+  /// (step 5 of the Postgres migration, NyayMitra.md) — field names match
+  /// app/models/v2/case.py's CaseItem exactly, by design: the client's
+  /// parsing code didn't change, only where the JSON comes from.
+  factory Case.fromApi(Map<String, dynamic> json) {
+    final rawTimeline = json['timeline'] as List<dynamic>? ?? const [];
+    return Case(
+      id: json['id'] as String,
+      firNumber: json['firNumber'] as String? ?? '',
+      court: json['court'] as String? ?? '',
+      undertrialName: json['undertrialName'] as String? ?? '',
+      advocateUid: json['advocateUid'] as String?,
+      advocateName: json['advocateName'] as String? ?? '',
+      familyUids: (json['familyUids'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      ngoUids: (json['ngoUids'] as List<dynamic>? ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      createdBy: json['createdBy'] as String?,
+      ownerType: json['ownerType'] as String?,
+      stage: json['stage'] as String? ?? '',
+      stageLabel: json['stageLabel'] as String? ?? '',
+      stageTone: _stageToneFromString(json['stageTone'] as String?),
+      nextHearingDate: _dateFromValue(json['nextHearingDate']),
+      documentCount: (json['documentCount'] as num?)?.toInt() ?? 0,
+      // Always [] from the API — cases.timeline doesn't exist in
+      // Postgres (dropped for hearings + case_events, commit 1 of the
+      // migration) and nothing has replaced it in the API yet. Parsed
+      // here anyway rather than hardcoded to const [], so a future
+      // endpoint that does populate it needs no client-side change.
+      timeline: rawTimeline
+          .map(
+            (e) => TimelineEntry.fromMap(Map<String, dynamic>.from(e as Map)),
+          )
           .toList(),
     );
   }
@@ -143,8 +188,9 @@ class Case {
       'stage': stage,
       'stageLabel': stageLabel,
       'stageTone': _stageToneToString(stageTone),
-      'nextHearingDate':
-          nextHearingDate == null ? null : Timestamp.fromDate(nextHearingDate!),
+      'nextHearingDate': nextHearingDate == null
+          ? null
+          : Timestamp.fromDate(nextHearingDate!),
       'documentCount': documentCount,
       'timeline': timeline.map((e) => e.toMap()).toList(),
     };

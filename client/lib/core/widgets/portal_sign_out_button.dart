@@ -8,13 +8,20 @@ import '../theme/app_theme.dart';
 /// notification bell. Confirms before signing out; AuthService.signOut()
 /// then drives RootRouter back to the sign-in screen.
 ///
-/// No per-portal cleanup happens here because there's nothing to clean up:
-/// this app has no ChangeNotifier/Provider holding cached case or task
-/// data anywhere (checked), and each portal's data lives in `late final`
-/// fields on that portal's own State — RootRouter shows SignInScreen for
-/// any signed-out user, which fully unmounts and disposes whatever portal
-/// was showing, so a fresh sign-in always builds a fresh State rather
-/// than reusing one holding a previous session's data.
+/// No per-portal cleanup happens here — not because there's nothing to
+/// clean up (step 5 of the Postgres migration, NyayMitra.md, added real
+/// state to clean up: open WebSocket connections, the stored access/
+/// refresh tokens), but because AuthService.signOut() already owns all
+/// of it centrally: it calls POST /auth/logout, clears secure storage,
+/// and force-closes every open socket via WsRegistry.closeAll(), on top
+/// of (not instead of) each stream's own connect-on-listen/close-on-
+/// cancel lifecycle. This app still has no ChangeNotifier/Provider
+/// holding cached case or task data (checked), and each portal's data
+/// still lives in `late final` fields on that portal's own State —
+/// RootRouter shows SignInScreen for any signed-out user, which fully
+/// unmounts and disposes whatever portal was showing, so a fresh sign-in
+/// always builds a fresh State rather than reusing one holding a
+/// previous session's data.
 class PortalSignOutButton extends StatelessWidget {
   const PortalSignOutButton({super.key, required this.locale});
 

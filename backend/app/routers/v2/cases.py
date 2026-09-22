@@ -1,13 +1,57 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...db.base import get_db
-from ...db.models import Case, CaseMember
-from ...dependencies import CurrentUser, get_current_user
-from ...models.v2.case import CreateCaseRequest, CreateCaseResponse
+from ...db.models import Case, CaseMember, User
+from ...dependencies import CurrentUser, get_current_user, require_case_member
+from ...models.v2.case import CaseItem, CreateCaseRequest, CreateCaseResponse
 from ...services.v2.connections import manager as ws_manager
 
 router = APIRouter()
+
+
+def _serialize_case(db: Session, case: Case) -> CaseItem:
+    """advocateUid/advocateName/familyUids/ngoUids are no longer columns
+    on cases (case_members is the source of truth since commit 1) — this
+    is the join-at-read-time this project's own migration notes always
+    said would replace the old denormalised fields.
+    """
+    members = db.scalars(select(CaseMember).where(CaseMember.case_id == case.id)).all()
+    advocate_uid: str | None = None
+    advocate_name = ""
+    family_uids: list[str] = []
+    ngo_uids: list[str] = []
+    for member in members:
+        if member.role == "advocate":
+            advocate_uid = str(member.user_id)
+            user = db.get(User, member.user_id)
+            advocate_name = user.display_name if user else ""
+        elif member.role == "family":
+            family_uids.append(str(member.user_id))
+        elif member.role == "ngo":
+            ngo_uids.append(str(member.user_id))
+
+    return CaseItem(
+        id=str(case.id),
+        firNumber=case.fir_number,
+        court=case.court,
+        undertrialName=case.undertrial_name,
+        advocateUid=advocate_uid,
+        advocateName=advocate_name,
+        familyUids=family_uids,
+        ngoUids=ngo_uids,
+        createdBy=str(case.created_by),
+        ownerType=case.owner_type,
+        stage=case.stage,
+        stageLabel=case.stage_label,
+        stageTone=case.stage_tone,
+        nextHearingDate=case.next_hearing_date,
+        documentCount=case.document_count,
+        timeline=[],
+    )
 
 
 @router.post("/cases", response_model=CreateCaseResponse)
@@ -53,3 +97,34 @@ def create_case(
     db.commit()
     ws_manager.broadcast_user_sync(current_user.id, {"type": "cases_changed"})
     return CreateCaseResponse(caseId=str(case.id))
+
+
+@router.get("/cases", response_model=list[CaseItem])
+def list_my_cases(
+    current_user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[CaseItem]:
+    """One endpoint replacing three separate Firestore queries
+    (advocateDocket / ngoCases / familyCases) — "cases I'm a member of"
+    is the same query regardless of role, since case_members.role always
+    matches the caller's own global role for every case they've ever been
+    added to (both case creation and invite redemption enforce that).
+    Ordered by next_hearing_date, matching the old composite-index
+    ordering (nulls sort last in Postgres ascending order by default).
+    """
+    case_ids = list(db.scalars(select(CaseMember.case_id).where(CaseMember.user_id == current_user.id)))
+    if not case_ids:
+        return []
+    cases = db.scalars(select(Case).where(Case.id.in_(case_ids)).order_by(Case.next_hearing_date.asc()))
+    return [_serialize_case(db, case) for case in cases]
+
+
+@router.get("/cases/{case_id}", response_model=CaseItem)
+def get_case(
+    case_id: uuid.UUID,
+    current_user: CurrentUser = Depends(require_case_member),
+    db: Session = Depends(get_db),
+) -> CaseItem:
+    case = db.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return _serialize_case(db, case)

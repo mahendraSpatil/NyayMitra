@@ -123,4 +123,11 @@ def me(
     user = db.get(User, current_user.id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return MeResponse(id=str(user.id), email=user.email, role=user.role, displayName=user.display_name)
+    return MeResponse(
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
+        displayName=user.display_name,
+        phone=user.phone,
+        preferredLanguage=user.preferred_language,
+    )

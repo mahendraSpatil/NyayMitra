@@ -21,7 +21,7 @@ extension TaskTypeLabel on String {
 }
 
 /// Matches tasks/{taskId}. taskType and priority stay free-form strings:
-/// CLAUDE.md's demo data shows examples (translation, legal aid
+/// NyayMitra.md's demo data shows examples (translation, legal aid
 /// coordination, verification visit; high/medium/scheduled) but never
 /// defines a fixed enum for either, so pinning one down here would be a
 /// guess rather than something the spec actually states.
@@ -57,7 +57,27 @@ class Task {
       priority: data['priority'] as String? ?? '',
       description: data['description'] as String? ?? '',
       completed: data['completed'] as bool? ?? false,
-      completedAt: completedAtValue is Timestamp ? completedAtValue.toDate() : null,
+      completedAt: completedAtValue is Timestamp
+          ? completedAtValue.toDate()
+          : null,
+    );
+  }
+
+  /// GET /api/v2/tasks — field names match app/models/v2/task.py's
+  /// TaskItem exactly.
+  factory Task.fromApi(Map<String, dynamic> json) {
+    final completedAtValue = json['completedAt'] as String?;
+    return Task(
+      id: json['id'] as String,
+      assignedToUid: json['assignedToUid'] as String? ?? '',
+      caseId: json['caseId'] as String? ?? '',
+      taskType: json['taskType'] as String? ?? '',
+      priority: json['priority'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      completed: json['completed'] as bool? ?? false,
+      completedAt: completedAtValue == null
+          ? null
+          : DateTime.tryParse(completedAtValue),
     );
   }
 
@@ -69,7 +89,9 @@ class Task {
       'priority': priority,
       'description': description,
       'completed': completed,
-      'completedAt': completedAt == null ? null : Timestamp.fromDate(completedAt!),
+      'completedAt': completedAt == null
+          ? null
+          : Timestamp.fromDate(completedAt!),
     };
   }
 }
