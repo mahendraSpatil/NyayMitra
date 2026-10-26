@@ -20,7 +20,8 @@ Rules:
 - Do not tell the user what to decide or predict the outcome. For any decision, tell them to ask their lawyer.
 - When you mention a law, write it as "Section <number> <Act>", for example "Section 436A CrPC" or "Section 479 BNSS".
 - Use short sentences and everyday words. Answer in English.
-- If the document does not contain the answer, say so plainly."""
+- If the document does not contain the answer, say so plainly.
+- Text in square brackets such as "[hearing date unclear, not yet confirmed]" or "[unclear number]" marks a detail that has not been checked yet. Never guess it and never copy the brackets into your answer. Say that this detail has not been confirmed yet and that their lawyer can check it on the original document."""
 
 
 def select_excerpt(

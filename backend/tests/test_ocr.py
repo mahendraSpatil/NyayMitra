@@ -19,7 +19,17 @@ from app.services.ocr.base import OCRError, OCRResult, OCRTimeout, OCRUnavailabl
 from app.services.ocr.tesseract import _page_from_data
 from app.services.pdf_extraction import extract_document
 
-HAVE_BINARIES = bool(shutil.which("tesseract") and (shutil.which("pdftoppm") or settings.poppler_path))
+def _have_binaries() -> bool:
+    # Honour TESSERACT_CMD / POPPLER_PATH exactly as the app does: if they
+    # are set they must exist; otherwise look on PATH.
+    import os
+
+    tesseract = os.path.isfile(settings.tesseract_cmd) if settings.tesseract_cmd else bool(shutil.which("tesseract"))
+    poppler = os.path.isdir(settings.poppler_path) if settings.poppler_path else bool(shutil.which("pdftoppm"))
+    return tesseract and poppler
+
+
+HAVE_BINARIES = _have_binaries()
 needs_engine = pytest.mark.skipif(not HAVE_BINARIES, reason="tesseract/poppler not installed")
 
 
