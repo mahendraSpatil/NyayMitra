@@ -93,6 +93,8 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
             role: ChatRole.assistant,
             text: reply.text,
             citedDocuments: reply.citedDocuments,
+            skippedDocuments: reply.skippedDocuments,
+            fieldsPendingReview: reply.fieldsPendingReview,
             verificationStatus: reply.verified
                 ? VerificationStatus.verified
                 : VerificationStatus.unverified,
@@ -278,7 +280,28 @@ class _MessageBubble extends StatelessWidget {
             if (message.citedDocuments.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
-                'Referenced: ${message.citedDocuments.map((d) => docTypeFromApiValue(d.docType).label).join(", ")}',
+                'Referenced: ${message.citedDocuments.map((d) => docTypeFromApiValue(d.docType).label + (d.isScanned ? " (scanned)" : "")).join(", ")}',
+                style: AppTextStyles.cardSubtitle,
+              ),
+              if (message.citedDocuments.any((d) => d.isScanned))
+                Text(
+                  'Scanned text can contain misread numbers or dates — check the original.',
+                  style: AppTextStyles.cardSubtitle,
+                ),
+            ],
+            if (message.skippedDocuments.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                "Not used (scan too unclear to read reliably): ${message.skippedDocuments.map((d) => docTypeFromApiValue(d.docType).label).join(", ")}. Ask your lawyer, or upload a clearer scan.",
+                style: AppTextStyles.cardSubtitle,
+              ),
+            ],
+            if (message.fieldsPendingReview > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${message.fieldsPendingReview} date(s)/section(s) from scanned '
+                'documents are not confirmed yet, so the AI could not use them. '
+                'They can be checked under the document\'s "facts to check".',
                 style: AppTextStyles.cardSubtitle,
               ),
             ],

@@ -51,6 +51,63 @@ alembic upgrade head
 python scripts/seed.py
 ```
 
+### OCR for scanned PDFs (optional, Windows setup)
+
+Scanned PDFs (no embedded text) are read with Tesseract. `pip install` only
+gets you the Python wrappers — **the Tesseract and poppler programs are
+separate installs**, and without them scans stay `no_text_layer` exactly as
+before (nothing breaks).
+
+1. Install **Tesseract** (the UB Mannheim Windows build). In the installer,
+   under *Additional language data*, tick **Hindi** and **Marathi**.
+2. Download **poppler** for Windows
+   (`oschwartz10612/poppler-windows` on GitHub) and extract it, e.g. to
+   `D:\tools\poppler`.
+3. Put both on PATH (a new terminal is needed afterwards):
+
+   ```powershell
+   $p = [Environment]::GetEnvironmentVariable("Path","User")
+   [Environment]::SetEnvironmentVariable("Path", "$p;C:\Program Files\Tesseract-OCR;D:\tools\poppler\Library\bin", "User")
+   ```
+
+   Or skip PATH and set `TESSERACT_CMD` / `POPPLER_PATH` in `backend/.env`.
+4. Check, then install the Python side (`pip install -r requirements.txt`
+   already includes it):
+
+   ```powershell
+   tesseract --list-langs     # must list eng, hin, mar
+   pdftoppm -v
+   ```
+
+   If `hin`/`mar` are missing the backend logs a warning and reads with the
+   languages it has; a Devanagari scan then comes back low-confidence and is
+   not used by the AI.
+5. `alembic upgrade head` (adds `documents.text_source` / `ocr_confidence`,
+   `documents.uncertain_spans`, and the `document_fields` table), then
+   backfill key facts for documents uploaded before this existed:
+
+   ```powershell
+   python scripts/extract_fields.py
+   ```
+
+Knobs (all in `backend/.env.example`): `OCR_MIN_CONFIDENCE` (default 60),
+`OCR_MAX_PAGES` (20), `OCR_DPI` (300), `OCR_PAGE_TIMEOUT_S`, `OCR_MAX_SECONDS`,
+`OCR_PROVIDER=none` to switch OCR off, `OCR_FIELD_AUTO_ACCEPT` (empty =
+every OCR'd date/section/FIR number needs a person to confirm it).
+Tests: `pytest tests/test_ocr.py tests/test_field_extraction.py -v` (no
+database; real-engine tests skip themselves if the binaries are missing) and
+`pytest tests/v2/test_document_fields.py -v` (needs Postgres).
+
+**Key facts and review.** Each document's FIR number, sections and dates are
+pulled out with their own confidence (the weakest word in the fact). In the
+app, a document shows "N fact(s) to check · M not found"; the advocate, NGO,
+or case manager confirms each against the paper original, corrects it, marks
+it unclear, adds a missing one by hand, or asks the AI to "Find more facts"
+(suggestions must quote the document and still need confirming). Until then
+the AI sees `[arrest date unclear, not yet confirmed]` instead of the value,
+and on scans every other number is hidden too (`OCR_MASK_ALL_NUMBERS`).
+Tests: add `tests/test_llm_field_finder.py` (no database).
+
 ## 3. Run it
 
 ```bash

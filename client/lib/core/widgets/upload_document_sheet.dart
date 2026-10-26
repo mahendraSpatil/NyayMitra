@@ -18,10 +18,15 @@ const _uploadableDocTypes = [
 /// tell the user about it (a SnackBar today), since the sheet itself is
 /// gone by the time this is read.
 class UploadSheetResult {
-  const UploadSheetResult({required this.ocrStatus, required this.hasText});
+  const UploadSheetResult({
+    required this.ocrStatus,
+    required this.hasText,
+    this.fieldsNeedingReview = 0,
+  });
 
   final String ocrStatus;
   final bool hasText;
+  final int fieldsNeedingReview;
 }
 
 /// Opens the sheet and, once it closes after a completed (not cancelled)
@@ -47,12 +52,26 @@ Future<void> openUploadDocumentSheet(
 
   final message = switch (result.ocrStatus) {
     'extracted' => 'Document uploaded.',
+    'ocr_extracted' =>
+      'Uploaded. This is a scan, so the text was read by OCR and may '
+          'contain mistakes — check important numbers and dates against '
+          'the original.',
+    'ocr_low_confidence' =>
+      "Uploaded, but this scan is too unclear to read reliably, so the "
+          "AI won't use it. Try a flatter, brighter, higher-resolution scan.",
     'no_text_layer' =>
       "Uploaded, but no readable text was found — this looks like a "
-          "scan. Text extraction isn't available for scans yet.",
+          "scan, and scan reading isn't available on this server.",
     _ => "Uploaded, but the file couldn't be read as a PDF.",
   };
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final review = result.fieldsNeedingReview > 0
+      ? ' ${result.fieldsNeedingReview} date(s)/section(s) need checking '
+          'against the original before the AI will use them — tap '
+          '"facts to check" on the document.'
+      : '';
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('$message$review')),
+  );
 }
 
 /// Upload entry point for a case's documents, shared by the Advocate
@@ -106,6 +125,7 @@ class _UploadDocumentSheetState extends State<UploadDocumentSheet> {
         UploadSheetResult(
           ocrStatus: outcome.ocrStatus,
           hasText: outcome.hasText,
+          fieldsNeedingReview: outcome.fieldsNeedingReview,
         ),
       );
     } catch (e) {

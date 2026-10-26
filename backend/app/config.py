@@ -68,6 +68,41 @@ class Settings:
         [part.strip() for part in _llm_stop_raw.split(",") if part.strip()] if _llm_stop_raw else []
     )
     max_excerpt_chars = int(os.environ.get("MAX_EXCERPT_CHARS", "6000"))
+    # OCR for scanned PDFs (app/services/ocr/). Printed/typed scans only —
+    # handwriting is out of scope and is expected to come back low
+    # confidence. Tesseract and poppler are separate native installs, not
+    # pip packages; if they aren't on PATH, point at them here.
+    ocr_provider = os.environ.get("OCR_PROVIDER", "tesseract")
+    ocr_languages = os.environ.get("OCR_LANGUAGES", "eng+hin+mar")
+    # Mean per-word confidence (0-100) below which a scan is stored but
+    # kept OUT of /chat's context — see case_document_context.py.
+    ocr_min_confidence = float(os.environ.get("OCR_MIN_CONFIDENCE", "60"))
+    ocr_max_pages = int(os.environ.get("OCR_MAX_PAGES", "20"))
+    ocr_dpi = int(os.environ.get("OCR_DPI", "300"))
+    # Per-page and whole-document ceilings, so one degraded scan can't
+    # hold an upload request open indefinitely.
+    ocr_page_timeout_s = int(os.environ.get("OCR_PAGE_TIMEOUT_S", "60"))
+    ocr_max_seconds = int(os.environ.get("OCR_MAX_SECONDS", "180"))
+    # Key fields (dates, sections, FIR numbers) read by OCR need a person
+    # to confirm them before the chat model may use them. Unset (default)
+    # = ALWAYS. Set to e.g. 95 to auto-accept an OCR field whose every
+    # word scored at least that — only once you've measured on real scans
+    # that this is safe. See app/services/field_extraction.py.
+    _ocr_field_auto_accept_raw = os.environ.get("OCR_FIELD_AUTO_ACCEPT", "").strip()
+    ocr_field_auto_accept = float(_ocr_field_auto_accept_raw) if _ocr_field_auto_accept_raw else None
+    # OCR'd numbers outside any key field scoring below this are masked
+    # ("[unclear number]") in what the model sees.
+    ocr_uncertain_word_confidence = float(os.environ.get("OCR_UNCERTAIN_WORD_CONFIDENCE", "80"))
+    # Strict mode (default on): on a scan, EVERY number outside a key fact
+    # is hidden from the model, not just low-confidence ones — so a date
+    # the extractor missed can't reach the model misread. Costs the model
+    # amounts/phone numbers on scans; set "false" to mask only numbers below
+    # OCR_UNCERTAIN_WORD_CONFIDENCE.
+    ocr_mask_all_numbers = os.environ.get("OCR_MASK_ALL_NUMBERS", "true").lower() == "true"
+    # Optional absolute paths; empty means "look on PATH".
+    tesseract_cmd = os.environ.get("TESSERACT_CMD", "")
+    poppler_path = os.environ.get("POPPLER_PATH", "")
+
     # Not read anywhere yet — GeminiProvider is a stub (app/llm/gemini.py)
     # until a real integration exists. Kept here, not scattered, so
     # wiring one in later is a one-file change.

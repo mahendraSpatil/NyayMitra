@@ -5,6 +5,7 @@ import '../models/case_document.dart';
 import '../services/document_opener.dart';
 import '../services/document_view_service.dart';
 import '../theme/app_theme.dart';
+import 'document_fields_sheet.dart';
 import 'status_badge.dart';
 
 final _dateFormat = DateFormat('MMM d, yyyy');
@@ -62,6 +63,10 @@ class _DocumentTileState extends State<DocumentTile> {
     switch (widget.document.ocrStatus) {
       case 'extracted':
         return StatusTone.success;
+      case 'ocr_extracted':
+        return StatusTone.info;
+      case 'ocr_low_confidence':
+        return StatusTone.danger;
       case 'no_text_layer':
         return StatusTone.warning;
       case 'failed':
@@ -75,6 +80,12 @@ class _DocumentTileState extends State<DocumentTile> {
     switch (widget.document.ocrStatus) {
       case 'extracted':
         return 'Extracted';
+      // Honest wording: OCR is probabilistic, so a scan is never labelled
+      // "Extracted" the way a PDF's own text layer is.
+      case 'ocr_extracted':
+        return 'Scanned — text may be unreliable';
+      case 'ocr_low_confidence':
+        return 'Scan unclear — not used by AI';
       case 'no_text_layer':
         return 'No Text Layer';
       case 'failed':
@@ -82,6 +93,17 @@ class _DocumentTileState extends State<DocumentTile> {
       default:
         return 'Processing';
     }
+  }
+
+  String _factsSummary(CaseDocument document) {
+    final parts = <String>[
+      if (document.fieldsNeedingReview > 0)
+        '${document.fieldsNeedingReview} fact(s) to check',
+      if (document.missingFacts.isNotEmpty)
+        '${document.missingFacts.length} not found',
+    ];
+    if (parts.isEmpty) return 'Key facts (${document.fields.length}) →';
+    return '${parts.join(' · ')} →';
   }
 
   @override
@@ -99,11 +121,38 @@ class _DocumentTileState extends State<DocumentTile> {
               )
             : const Icon(Icons.description_outlined, color: AppColors.inkMuted),
         title: Text(document.docType.label, style: AppTextStyles.cardTitle),
-        subtitle: Text(
-          document.uploadedAt == null
-              ? 'Upload pending'
-              : _dateFormat.format(document.uploadedAt!),
-          style: AppTextStyles.cardSubtitle,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              document.uploadedAt == null
+                  ? 'Upload pending'
+                  : _dateFormat.format(document.uploadedAt!),
+              style: AppTextStyles.cardSubtitle,
+            ),
+            if (document.fields.isNotEmpty || document.missingFacts.isNotEmpty)
+              InkWell(
+                onTap: () => openDocumentFieldsSheet(
+                  context,
+                  caseId: widget.caseId,
+                  document: document,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _factsSummary(document),
+                    style: AppTextStyles.cardSubtitle.copyWith(
+                      color: document.fieldsNeedingReview > 0 ||
+                              document.missingFacts.isNotEmpty
+                          ? AppColors.warning
+                          : AppColors.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         trailing: StatusBadge(label: _extractionLabel, tone: _extractionTone),
       ),

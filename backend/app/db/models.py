@@ -24,6 +24,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -213,6 +214,10 @@ class Document(Base):
             "doc_type in ('fir', 'charge_sheet', 'bail_application', 'bail_order', 'remand_order')",
             name="ck_documents_doc_type",
         ),
+        CheckConstraint(
+            "text_source in ('text_layer', 'ocr', 'none')",
+            name="ck_documents_text_source",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -230,7 +235,98 @@ class Document(Base):
     uploaded_at: Mapped[datetime] = _created_at()
     ocr_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Provenance of raw_text: 'text_layer' (the PDF's own embedded text,
+    # exact), 'ocr' (recognised from page images — probabilistic), or
+    # 'none'. Never inferred from ocr_status after the fact; stored.
+    text_source: Mapped[str] = mapped_column(
+        String, nullable=False, default="none", server_default="none"
+    )
+    # Mean per-word OCR confidence, 0-100. NULL unless text_source='ocr'.
+    ocr_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # [[start, end], ...] offsets into raw_text of OCR'd numbers that are
+    # below OCR_UNCERTAIN_WORD_CONFIDENCE and not part of any key field —
+    # masked in what the chat model sees (field_extraction.render_for_model).
+    uncertain_spans: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     statutes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+
+    fields: Mapped[list["DocumentField"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", order_by="DocumentField.span_start"
+    )
+
+
+class DocumentField(Base):
+    """One key fact read from a document — FIR number, a section, a date —
+    with its own confidence and review state. See
+    app/services/field_extraction.py for how these are found and why OCR'd
+    ones need a human to confirm them before the chat model may use them.
+    """
+
+    __tablename__ = "document_fields"
+    __table_args__ = (
+        CheckConstraint("kind in ('fir_number', 'section', 'date')", name="ck_document_fields_kind"),
+        CheckConstraint(
+            "role is null or role in "
+            "('arrest', 'fir_registered', 'hearing', 'offence_date', 'document_date')",
+            name="ck_document_fields_role",
+        ),
+        CheckConstraint(
+            "status in ('auto_accepted', 'needs_review', 'confirmed', 'rejected')",
+            name="ck_document_fields_status",
+        ),
+        CheckConstraint("source in ('text_layer', 'ocr', 'manual')", name="ck_document_fields_source"),
+        CheckConstraint(
+            "extractor in ('form', 'pattern', 'llm', 'manual')", name="ck_document_fields_extractor"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Denormalised for the per-case review queue query.
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Exactly as it appears in raw_text (raw_text[span_start:span_end]).
+    # NULL for a fact a reviewer added by hand (no span in the text).
+    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What extraction read, normalised. Never overwritten — so a reviewer's
+    # correction is always auditable against what the machine read.
+    extracted_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Current value: extracted_value, or the reviewer's correction.
+    value: Mapped[str | None] = mapped_column(String, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    # Where the TEXT came from: 'text_layer' | 'ocr' | 'manual' (typed in
+    # by a reviewer from the paper original).
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    # What FOUND the fact: 'form' (a label on the standard FIR form),
+    # 'pattern' (general patterns), 'llm' (suggested by the model, grounded
+    # to a verbatim quote), 'manual' (added by a reviewer).
+    extractor: Mapped[str] = mapped_column(String, nullable=False, default="pattern", server_default="pattern")
+    # Why a date has its role: 'form_label' / 'keyword_near' are strong;
+    # 'keyword_far', 'doc_type', 'llm' are weak (key roles then need
+    # review); 'reviewer' = a person set it.
+    role_basis: Mapped[str | None] = mapped_column(String, nullable=True)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    span_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    span_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    issues: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    # Case role of the reviewer at review time ('advocate' | 'ngo' |
+    # 'family') — "confirmed by the advocate" and "confirmed by family"
+    # are not the same assurance, and the UI/model are told which.
+    reviewed_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    document: Mapped["Document"] = relationship(back_populates="fields")
 
 
 class Message(Base):

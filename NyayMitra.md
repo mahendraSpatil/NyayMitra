@@ -283,6 +283,20 @@ documents
   doc_type: 'fir' | 'charge_sheet' | 'bail_application' | 'bail_order' | 'remand_order'
   storage_path (Cloudinary public_id, never a URL — see "Tech stack")
   uploaded_by -> users, uploaded_at, ocr_status, raw_text, statutes (JSONB)
+  text_source: 'text_layer' | 'ocr' | 'none'   (provenance of raw_text)
+  ocr_confidence (float 0-100, only when text_source = 'ocr')
+  ocr_status: extracted | ocr_extracted | ocr_low_confidence | no_text_layer | failed
+  uncertain_spans (JSONB [[start,end]...]: low-confidence OCR'd numbers, masked for the model)
+
+document_fields   (key facts read from a document — see "Key fields")
+  id, document_id -> documents (CASCADE), case_id -> cases (CASCADE)
+  kind: 'fir_number' | 'section' | 'date'
+  role (dates): 'arrest' | 'fir_registered' | 'hearing' | 'document_date'
+  raw_text (as read), extracted_value (machine, never overwritten),
+  value (current; reviewer's correction wins), confidence (0-100, weakest word),
+  source: 'text_layer' | 'ocr', page, span_start/span_end (into raw_text),
+  issues (JSONB), status: 'auto_accepted' | 'needs_review' | 'confirmed' | 'rejected',
+  reviewed_by -> users, reviewed_role, reviewed_at
 
 messages
   id, case_id -> cases (CASCADE), role: 'user' | 'assistant'
@@ -349,8 +363,99 @@ Verifies the caller's JWT access token on every request via
 
 Services:
 
-- `ocr_service` — Google Cloud Vision (fallback AWS Textract) for messy,
-  handwritten, stamped Indian legal PDFs.
+- `ocr_service` — **built** (`app/services/ocr/`): Tesseract (eng+hin+mar)
+  behind an `OCRProvider` interface, for *printed/typed* scans only. Runs in
+  `/documents/confirm-upload` when a PDF has no text layer.
+  - Confidence is per-word (`image_to_data`), averaged per document. Below
+    `OCR_MIN_CONFIDENCE` the scan is `ocr_low_confidence`: the text is stored
+    for a human to read but is **never given to the chat model**; `/chat`
+    reports it in `skippedDocuments` so an answer never silently ignores an
+    upload.
+  - A scan we *are* confident in is used, labelled `scanned copy, read by OCR`
+    in the prompt, with `textSource`/`ocrConfidence` returned per cited
+    document, and the UI says scanned text may contain misread numbers.
+  - **Why the gate exists:** an OCR misread (Section 436A read as 437, a
+    wrong custody date) passes every automated check we have — `law_grounding`
+    only checks that a cited section exists, not that the document said it.
+    OCR confidence is the only signal that catches it, so it is enforced at
+    the source. Even a high score is not a guarantee; the UI says so.
+  - **Not supported:** handwriting (expected to come back low-confidence),
+    mixed PDFs where only some pages are scanned, and very large scans (pages
+    beyond `OCR_MAX_PAGES` are not read; the stored text says so).
+  - Runs synchronously inside the upload request (blocking work is moved off
+    the event loop with `run_in_threadpool`, two at a time). A background job
+    queue is the proper fix for large scans and is future work.
+  - Future: a cloud OCR (Google Cloud Vision) or PaddleOCR is a new
+    `OCRProvider` class plus one line in `factory.py`.
+
+### Key fields (per-field confidence, confirm before use)
+
+`app/services/field_extraction.py` (pure) + `services/v2/document_fields.py`
+(DB) + `routers/v2/document_fields.py` (review API).
+
+- Every document with text gets its FIR number, sections (IPC/CrPC/BNS/BNSS,
+  incl. कलम / भादंवि) and dates (English, Marathi, Hindi; Devanagari digits)
+  extracted, in passes, most reliable first:
+  1. **form** — labels on the standard FIR form (CCTNS / NCRB IIF-I:
+     "Information received at P.S. … Date", "Occurrence of offence … Date
+     from", the Acts/Sections table) and court-order wording ("Date of
+     arrest", "Next date", "अटक दिनांक", "पुढील तारीख"). **Built from the
+     published form layout, not yet validated on real Maharashtra
+     documents** — needs a labelled sample set (see "Evaluation").
+  2. **pattern** — general patterns; a date's role comes from the nearest
+     keyword in the same sentence, before or after it (Marathi puts the
+     verb after: "१४/०३/२०२६ रोजी अटक").
+  3. **llm** (on demand, "Find more facts") — the model may only *point* at
+     text: each suggestion must quote the document verbatim, the value is
+     parsed from the document at that spot, ungrounded suggestions are
+     dropped, and every kept one needs review. The model's own value is
+     never stored.
+  4. **manual** — a reviewer types a missed fact from the paper original.
+- **Role strength.** form label / keyword within ~30 chars = strong;
+  distant keyword, document-type prior (a remand order's latest
+  unexplained date → next hearing), or the model = weak. A weak role on a
+  key date (offence, FIR, arrest, hearing) → `needs_review`, even in typed
+  text. Confirming a date records `role_basis = reviewer`.
+- **Required facts per document type** (FIR: number, sections,
+  registration date; remand order: next date; …). A missing one is shown
+  as "not found — add it", and `/chat` tells the model which key facts are
+  not in the documents so it doesn't guess.
+- **Confidence per field = its weakest word.** A date is only as reliable as
+  its worst digit; a page average hides exactly the error that matters.
+- **Checks:** real calendar date, plausible year, no offence/FIR/arrest/
+  document date in the future, two-digit years, and a timeline (offence ≤
+  FIR registration ≤ arrest ≤ hearings) checked within the document **and
+  against dates already on the case from other documents**. A failed check
+  → `needs_review` even for typed text.
+- **Policy:** typed text → `auto_accepted`. OCR → **always `needs_review`**
+  unless `OCR_FIELD_AUTO_ACCEPT` is set. Measured reason: on a moderately
+  blurry test scan, Tesseract read "22 July 2026" as "July 2 2026" with 91%
+  confidence on that field and 87% for the page. No threshold catches that;
+  only a person with the original does.
+- **The model never sees an unconfirmed value.** `render_for_model` replaces
+  needs_review/rejected fields with `[<label> unclear, not yet confirmed]`,
+  and — strict mode, `OCR_MASK_ALL_NUMBERS=true` by default — **every**
+  number on a scan outside a key fact with `[unclear number]` (so a date the
+  extractor missed can't reach the model misread either), and
+  confirmed fields with the confirmed value. `raw_text` itself is never
+  altered. `/chat` also passes usable facts with their basis ("confirmed by
+  advocate" / "typed text in the document") and returns
+  `fieldsPendingReview`.
+- **Who confirms:** advocate, NGO, or case manager (`require_case_reviewer`);
+  an invited family member can see but not confirm. The reviewer's case role
+  is stored and shown — "confirmed by family" and "confirmed by advocate"
+  are different assurances. `extracted_value` is never overwritten, so every
+  correction is auditable.
+- **Remaining limits:** on *typed* documents a missed fact is not masked
+  (the text is exact, so it can't be misread — only unlabelled); the form
+  rules are unvalidated; the LLM finder is only as good as the local
+  model's instruction-following (it fails safe — nothing ungrounded is
+  kept). Statute existence is not checked here — that is `law_grounding`
+  against the statute KB.
+- **Evaluation (to do, needs data):** 20+ real, redacted FIRs / remand
+  orders / charge sheets with hand-labelled facts → recall per fact,
+  role accuracy, and OCR field error rate per engine. This is what
+  validates the form rules and sets `OCR_FIELD_AUTO_ACCEPT`, if ever.
 - `ner_service` — OpenNyAI, extracting jurisdictions, judges, IPC/BNS statutes.
 - `retrieval_service` — cross-encoder reranker over the case-law vector DB.
 - `generation_service` — Gemini 1.5 Pro for synthesis, Mistral 7B for

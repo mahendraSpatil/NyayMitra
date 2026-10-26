@@ -86,6 +86,26 @@ def require_case_manager(
     return current_user
 
 
+def require_case_reviewer(
+    case_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CurrentUser:
+    """Who may confirm/correct a key field read from a document (dates,
+    sections, FIR numbers): the advocate or NGO on the case, or a case
+    manager (a family that created its own case, with nobody else to
+    ask). A family member who merely joined by invite may not — they can
+    see what needs checking, but the confirmation is a professional's or
+    the case owner's call. The reviewer's role is recorded on the field.
+    """
+    member = _member_or_403(db, case_id, current_user)
+    if member.role not in ("advocate", "ngo") and not member.is_manager:
+        raise HTTPException(
+            status_code=403, detail="Only the advocate, NGO, or case manager can confirm document facts"
+        )
+    return current_user
+
+
 def require_case_member_from_body(body_field: str = "caseId", *, optional: bool = False):
     """Factory, not a bare dependency: /chat, /documents/sign-upload, and
     /documents/confirm-upload all take their case id as a JSON body

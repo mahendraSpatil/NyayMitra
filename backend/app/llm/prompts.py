@@ -40,6 +40,8 @@ def select_excerpt(
     entries: list[tuple[str, str]] = []  # (doc_label, paragraph)
     for doc in documents:
         label = f"{doc.doc_type} ({doc.doc_id})"
+        if doc.text_source == "ocr":
+            label += " — scanned copy, read by OCR"
         for para in re.split(r"\n\s*\n", doc.text):
             para = para.strip()
             if para:

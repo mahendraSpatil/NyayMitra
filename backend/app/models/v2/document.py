@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from .document_field import DocumentFieldItem, MissingFact
 
 
 class SignUploadRequest(BaseModel):
@@ -30,6 +32,15 @@ class ConfirmUploadResponse(BaseModel):
     docId: str
     ocrStatus: str
     hasText: bool
+    # 'text_layer' | 'ocr' | 'none' — see app/services/pdf_extraction.py.
+    textSource: str = "none"
+    # 0-100, only for OCR'd scans.
+    ocrConfidence: float | None = None
+    # True when the scan had more pages than OCR_MAX_PAGES: text is partial.
+    ocrTruncated: bool = False
+    # Key fields (dates/sections/FIR no.) a person must confirm before the
+    # AI may rely on them.
+    fieldsNeedingReview: int = 0
 
 
 class DownloadUrlResponse(BaseModel):
@@ -49,4 +60,10 @@ class DocumentItem(BaseModel):
     uploadedAt: datetime | None
     ocrStatus: str | None
     rawText: str | None
+    textSource: str = "none"
+    ocrConfidence: float | None = None
     statutes: list = []
+    fields: list[DocumentFieldItem] = Field(default_factory=list)
+    # Facts this document type should contain that weren't found — shown
+    # as "add it" prompts instead of failing silently.
+    missingFacts: list[MissingFact] = Field(default_factory=list)

@@ -1,3 +1,5 @@
+import 'document_field.dart';
+
 enum DocType {
   fir,
   chargeSheet,
@@ -98,7 +100,22 @@ class CaseDocument {
   final DateTime? uploadedAt;
   final String? ocrStatus;
   final String? rawText;
+
+  /// 'text_layer' (the PDF's own text, exact), 'ocr' (read from a scan —
+  /// may contain misread characters) or 'none'.
+  final String textSource;
+
+  /// 0-100, only for OCR'd scans.
+  final double? ocrConfidence;
   final List<Statute> statutes;
+
+  /// Key facts read from this document (FIR number, sections, dates).
+  final List<DocumentField> fields;
+
+  /// Facts this document type should contain that weren't found.
+  final List<MissingFact> missingFacts;
+
+  int get fieldsNeedingReview => fields.where((f) => f.needsReview).length;
 
   const CaseDocument({
     required this.id,
@@ -108,7 +125,11 @@ class CaseDocument {
     this.uploadedAt,
     this.ocrStatus,
     this.rawText,
+    this.textSource = 'none',
+    this.ocrConfidence,
     this.statutes = const [],
+    this.fields = const [],
+    this.missingFacts = const [],
   });
 
   /// GET /api/v2/cases/{caseId}/documents — field names match
@@ -126,8 +147,16 @@ class CaseDocument {
           : DateTime.tryParse(uploadedAtValue),
       ocrStatus: json['ocrStatus'] as String?,
       rawText: json['rawText'] as String?,
+      textSource: json['textSource'] as String? ?? 'none',
+      ocrConfidence: (json['ocrConfidence'] as num?)?.toDouble(),
       statutes: rawStatutes
           .map((e) => Statute.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      fields: (json['fields'] as List<dynamic>? ?? const [])
+          .map((e) => DocumentField.fromApi(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      missingFacts: (json['missingFacts'] as List<dynamic>? ?? const [])
+          .map((e) => MissingFact.fromApi(Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
   }

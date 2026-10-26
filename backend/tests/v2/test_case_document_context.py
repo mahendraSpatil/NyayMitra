@@ -25,6 +25,7 @@ def _add_document(db, case_id, uploaded_by, *, text, doc_type="fir"):
         uploaded_by=uploaded_by,
         ocr_status="extracted" if text else "no_text_layer",
         raw_text=text,
+        text_source="text_layer" if text else "none",
         statutes=[],
     )
     db.add(doc)
@@ -86,3 +87,44 @@ def test_an_oversized_document_is_truncated_not_dropped_and_does_not_evict_later
     # after the first oversized document for no reason," not "ignore the
     # budget entirely."
     assert "remand_order" not in doc_types
+
+
+def test_low_confidence_ocr_text_is_excluded_from_context_but_reported(make_case, accounts, db):
+    case_id = make_case(created_by=accounts["advocate"]["uid"])
+    uploader = accounts["advocate"]["uid"]
+    good = _add_document(db, case_id, uploader, text="clean typed text")
+    bad = Document(
+        id=uuid.uuid4(), case_id=case_id, doc_type="remand_order",
+        storage_path=f"cases/test/{uuid.uuid4()}.pdf", uploaded_by=uploader,
+        ocr_status="ocr_low_confidence", raw_text="garbled sc4n t3xt",
+        text_source="ocr", ocr_confidence=38.5, statutes=[],
+    )
+    db.add(bad)
+    db.commit()
+
+    from app.services.v2.case_document_context import fetch_excluded_documents
+
+    included, _ = fetch_case_document_context(db, case_id)
+    assert [d.doc_id for d in included] == [str(good.id)]
+
+    excluded = fetch_excluded_documents(db, case_id)
+    assert [(e.doc_id, e.reason, e.ocr_confidence) for e in excluded] == [
+        (str(bad.id), "low_ocr_confidence", 38.5)
+    ]
+
+
+def test_confident_ocr_text_is_included_and_keeps_its_provenance(make_case, accounts, db):
+    case_id = make_case(created_by=accounts["advocate"]["uid"])
+    scan = Document(
+        id=uuid.uuid4(), case_id=case_id, doc_type="fir",
+        storage_path=f"cases/test/{uuid.uuid4()}.pdf", uploaded_by=accounts["advocate"]["uid"],
+        ocr_status="ocr_extracted", raw_text="scanned but clear",
+        text_source="ocr", ocr_confidence=91.0, statutes=[],
+    )
+    db.add(scan)
+    db.commit()
+
+    included, _ = fetch_case_document_context(db, case_id)
+    assert len(included) == 1
+    assert included[0].text_source == "ocr"
+    assert included[0].ocr_confidence == 91.0

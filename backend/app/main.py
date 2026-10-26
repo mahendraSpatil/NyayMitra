@@ -18,6 +18,7 @@ from .routers import auth
 from .routers.v2 import case_events as v2_case_events
 from .routers.v2 import cases as v2_cases
 from .routers.v2 import chat as v2_chat
+from .routers.v2 import document_fields as v2_document_fields
 from .routers.v2 import documents as v2_documents
 from .routers.v2 import hearings as v2_hearings
 from .routers.v2 import invites as v2_invites
@@ -85,6 +86,7 @@ app.include_router(v2_cases.router, prefix="/api/v2")
 app.include_router(v2_hearings.router, prefix="/api/v2")
 app.include_router(v2_case_events.router, prefix="/api/v2")
 app.include_router(v2_documents.router, prefix="/api/v2")
+app.include_router(v2_document_fields.router, prefix="/api/v2")
 app.include_router(v2_chat.router, prefix="/api/v2")
 app.include_router(v2_invites.router, prefix="/api/v2")
 app.include_router(v2_tasks.router, prefix="/api/v2")

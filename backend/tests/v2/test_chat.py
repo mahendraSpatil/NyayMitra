@@ -134,6 +134,7 @@ def test_chat_includes_real_case_details_and_document_context(
             uploaded_by=accounts["advocate"]["uid"],
             ocr_status="extracted",
             raw_text="The undertrial was arrested under Section 302 IPC.",
+            text_source="text_layer",
             statutes=[],
         )
     )
@@ -147,13 +148,104 @@ def test_chat_includes_real_case_details_and_document_context(
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["citedDocuments"] == [{"docId": str(document_id), "docType": "fir"}]
+        assert body["citedDocuments"] == [
+            {
+                "docId": str(document_id),
+                "docType": "fir",
+                "textSource": "text_layer",
+                "ocrConfidence": None,
+            }
+        ]
+        assert body["skippedDocuments"] == []
 
         prompt = fake_llm.calls[0][-1]["content"]
         assert "Test Chat Person" in prompt  # real Case column, not a fabricated field
         assert "arrested under Section 302 IPC" in prompt  # real document excerpt
     finally:
         db.query(Document).filter(Document.id == document_id).delete()
+        db.commit()
+
+
+def _add_doc(db, case_id, uploader, *, text, ocr_status, text_source, confidence=None, doc_type="fir"):
+    doc = Document(
+        id=uuid.uuid4(),
+        case_id=case_id,
+        doc_type=doc_type,
+        storage_path=f"cases/test/{uuid.uuid4()}.pdf",
+        uploaded_by=uploader,
+        ocr_status=ocr_status,
+        raw_text=text,
+        text_source=text_source,
+        ocr_confidence=confidence,
+        statutes=[],
+    )
+    db.add(doc)
+    db.commit()
+    return doc
+
+
+def test_chat_low_confidence_scan_is_kept_out_of_the_prompt_and_reported(
+    client, auth_headers, make_case, accounts, fake_llm, db
+):
+    """The point of OCR gating: a scan we are not confident in must never
+    reach the model, and the user must be told it was skipped rather than
+    getting an answer that silently ignores their document."""
+    case_id = _advocate_owned_case(make_case, accounts, db)
+    uploader = accounts["advocate"]["uid"]
+    bad = _add_doc(
+        db, case_id, uploader,
+        text="Sectlon 4З7 CrPC arrestd on l4 Marcb",  # garbled OCR
+        ocr_status="ocr_low_confidence", text_source="ocr", confidence=41.0,
+    )
+    try:
+        response = client.post(
+            "/api/v2/chat",
+            json={"message": "What section?", "caseId": str(case_id)},
+            headers=auth_headers("advocate"),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["citedDocuments"] == []
+        assert body["skippedDocuments"] == [
+            {
+                "docId": str(bad.id),
+                "docType": "fir",
+                "reason": "low_ocr_confidence",
+                "ocrConfidence": 41.0,
+            }
+        ]
+        assert "Sectlon" not in fake_llm.calls[0][-1]["content"]
+    finally:
+        db.query(Document).filter(Document.case_id == case_id).delete()
+        db.commit()
+
+
+def test_chat_good_scan_is_used_labelled_as_ocr_and_flagged_in_the_prompt(
+    client, auth_headers, make_case, accounts, fake_llm, db
+):
+    case_id = _advocate_owned_case(make_case, accounts, db)
+    scan = _add_doc(
+        db, case_id, accounts["advocate"]["uid"],
+        text="Accused arrested under Section 379 IPC.",
+        ocr_status="ocr_extracted", text_source="ocr", confidence=93.2,
+    )
+    try:
+        response = client.post(
+            "/api/v2/chat",
+            json={"message": "What section?", "caseId": str(case_id)},
+            headers=auth_headers("advocate"),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["citedDocuments"] == [
+            {"docId": str(scan.id), "docType": "fir", "textSource": "ocr", "ocrConfidence": 93.2}
+        ]
+        prompt = fake_llm.calls[0][-1]["content"]
+        assert "scanned copy, read by OCR" in prompt
+        assert "may contain misread characters" in prompt
+        assert "Section 379 IPC" in prompt
+    finally:
+        db.query(Document).filter(Document.case_id == case_id).delete()
         db.commit()
 
 

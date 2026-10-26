@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import '../../core/models/chat_message.dart' show CitedDocument;
+import '../../core/models/chat_message.dart' show CitedDocument, SkippedDocument;
 import '../../core/services/api_client.dart';
 
 /// One assistant reply from POST /chat, or the outcome of a failed call.
@@ -11,12 +11,19 @@ class ChatReply {
     required this.verified,
     this.citedSections = const [],
     this.citedDocuments = const [],
+    this.skippedDocuments = const [],
+    this.fieldsPendingReview = 0,
   });
 
   final String text;
   final bool verified;
   final List<String> citedSections;
   final List<CitedDocument> citedDocuments;
+  final List<SkippedDocument> skippedDocuments;
+
+  /// Facts from scanned documents still waiting for confirmation — the
+  /// model was not shown their values.
+  final int fieldsPendingReview;
 }
 
 class ChatService {
@@ -34,7 +41,7 @@ class ChatService {
     final response = await _apiClient
         .post(
           '/chat',
-          body: {'message': message, if (caseId != null) 'caseId': caseId},
+          body: {'message': message, 'caseId': ?caseId},
         )
         .timeout(
           _requestTimeout,
@@ -67,6 +74,11 @@ class ChatService {
       citedDocuments: (json['citedDocuments'] as List<dynamic>? ?? const [])
           .map((e) => CitedDocument.fromMap(e as Map<String, dynamic>))
           .toList(),
+      skippedDocuments:
+          (json['skippedDocuments'] as List<dynamic>? ?? const [])
+              .map((e) => SkippedDocument.fromMap(e as Map<String, dynamic>))
+              .toList(),
+      fieldsPendingReview: json['fieldsPendingReview'] as int? ?? 0,
     );
   }
 }

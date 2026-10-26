@@ -8,9 +8,13 @@ from ...db.models import Case
 from ...dependencies import CurrentUser, require_case_member_from_body
 from ...llm.base import LLMProvider, LLMUnavailable
 from ...llm.factory import get_llm
-from ...models.v2.chat import ChatRequest, ChatResponse, CitedDocument
-from ...services.v2.case_document_context import fetch_case_document_context
+from ...models.v2.chat import ChatRequest, ChatResponse, CitedDocument, SkippedDocument
+from ...services.v2.case_document_context import (
+    fetch_case_document_context,
+    fetch_excluded_documents,
+)
 from ...services.v2.chat_generation import generate_draft
+from ...services.v2.document_fields import case_facts
 from ...services.v2.verification import verify_draft
 
 router = APIRouter()
@@ -20,10 +24,9 @@ router = APIRouter()
 # check only applies when a caseId is actually present.
 _require_optional_case_member = require_case_member_from_body("caseId", optional=True)
 
-# TODO(ocr_service): still not connected — pdf_extraction.py (used by
-#     /documents/confirm-upload) reads a PDF's existing text layer only.
-#     A scanned document with no text layer still has nothing to
-#     retrieve here.
+# OCR: scanned PDFs are read at upload time (app/services/pdf_extraction.py,
+#     app/services/ocr/). A scan below OCR_MIN_CONFIDENCE is stored but kept
+#     out of the context below and reported in skippedDocuments instead.
 # TODO(ner_service): no jurisdiction/statute extraction yet — CASE
 #     DETAILS in the prompt comes from the case's own Postgres columns,
 #     not NER over its documents.
@@ -43,7 +46,9 @@ async def chat(
 ) -> ChatResponse:
     case_details: dict = {}
     cited_documents: list[CitedDocument] = []
+    skipped_documents: list[SkippedDocument] = []
     documents = []
+    pending_review = 0
 
     if payload.caseId:
         case_id = uuid.UUID(payload.caseId)
@@ -63,8 +68,40 @@ async def chat(
 
         documents, _truncated = fetch_case_document_context(db, case_id)
         cited_documents = [
-            CitedDocument(docId=d.doc_id, docType=d.doc_type) for d in documents
+            CitedDocument(
+                docId=d.doc_id,
+                docType=d.doc_type,
+                textSource=d.text_source,
+                ocrConfidence=d.ocr_confidence,
+            )
+            for d in documents
         ]
+        skipped_documents = [
+            SkippedDocument(
+                docId=d.doc_id,
+                docType=d.doc_type,
+                reason=d.reason,
+                ocrConfidence=d.ocr_confidence,
+            )
+            for d in fetch_excluded_documents(db, case_id)
+        ]
+        # Only facts that are exact text or confirmed by a person; the
+        # model is told the basis of each. Unconfirmed ones are masked in
+        # the document text (case_document_context.py) and only counted here.
+        facts = case_facts(db, case_id)
+        pending_review = facts.pending_review
+        if facts.facts:
+            case_details["confirmedFactsFromDocuments"] = facts.facts
+        if facts.not_found:
+            case_details["notFoundInDocuments"] = (
+                ", ".join(facts.not_found)
+                + " — not found in the uploaded documents. Do not guess these."
+            )
+        if pending_review:
+            case_details["factsAwaitingConfirmation"] = (
+                f"{pending_review} date(s)/section(s) read from scanned documents are not "
+                "confirmed yet and are hidden. Do not guess them; say they need checking."
+            )
 
     # Every DB read /chat needs is done — close explicitly rather than
     # wait for get_db()'s own teardown (which only runs once this whole
@@ -95,6 +132,8 @@ async def chat(
         verificationStatus="verified" if verdict.verified else "unverified",
         citedSections=verdict.cited_sections,
         citedDocuments=cited_documents,
+        skippedDocuments=skipped_documents,
+        fieldsPendingReview=pending_review,
         modelUsed=draft.model,
         latencyMs=draft.latency_ms,
     )

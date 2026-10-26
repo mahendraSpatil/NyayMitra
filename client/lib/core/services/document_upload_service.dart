@@ -7,10 +7,18 @@ import 'package:http/http.dart' as http;
 import 'api_client.dart';
 
 class DocumentUploadOutcome {
-  const DocumentUploadOutcome({required this.ocrStatus, required this.hasText});
+  const DocumentUploadOutcome({
+    required this.ocrStatus,
+    required this.hasText,
+    this.fieldsNeedingReview = 0,
+  });
 
   final String ocrStatus;
   final bool hasText;
+
+  /// Dates/sections/FIR numbers read from a scan that a person must
+  /// confirm before the AI uses them.
+  final int fieldsNeedingReview;
 }
 
 class DocumentUploadException implements Exception {
@@ -71,6 +79,7 @@ class DocumentUploadService {
     return DocumentUploadOutcome(
       ocrStatus: confirmed['ocrStatus'] as String? ?? 'failed',
       hasText: confirmed['hasText'] as bool? ?? false,
+      fieldsNeedingReview: confirmed['fieldsNeedingReview'] as int? ?? 0,
     );
   }
 

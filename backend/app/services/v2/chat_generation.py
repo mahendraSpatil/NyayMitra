@@ -27,6 +27,14 @@ async def generate_draft(
     llm: LLMProvider,
 ) -> LLMResult:
     excerpt = select_excerpt(documents, question)
+    if excerpt and any(d.text_source == "ocr" for d in documents):
+        # OCR can misread digits and letters. Tell the model so it flags
+        # uncertain numbers/dates instead of stating them with confidence.
+        excerpt = (
+            "NOTE: sections marked 'scanned copy, read by OCR' may contain misread "
+            "characters. If a number, date or section looks unclear, say it is unclear "
+            "and ask the lawyer to check the original.\n\n" + excerpt
+        )
     # statute_context ("" here) stays empty until retrieval_service /
     # statute_kb exist (NyayMitra.md's AI pipeline) — there is nothing
     # real to put there yet, and a fabricated one would risk looking

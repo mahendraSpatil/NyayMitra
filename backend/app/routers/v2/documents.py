@@ -5,6 +5,7 @@ import cloudinary
 import cloudinary.utils
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,8 +22,16 @@ from ...models.v2.document import (
     SignUploadResponse,
 )
 from ...services.cloudinary_delivery import signed_download_url
-from ...services.pdf_extraction import extract_text
+from ...services.pdf_extraction import extract_document
 from ...services.v2.connections import manager as ws_manager
+from ...models.v2.document_field import MissingFact
+from ...services.field_extraction import field_label
+from ...services.v2.document_fields import (
+    add_fields_for_document,
+    document_missing_facts,
+    fields_by_document,
+)
+from .document_fields import to_item as field_to_item
 
 router = APIRouter()
 
@@ -90,7 +99,10 @@ async def confirm_upload(
                 status_code=502, detail=f"Could not download uploaded file: {exc}"
             ) from exc
 
-    raw_text, ocr_status = extract_text(response.content)
+    # Blocking and potentially slow for scans (OCR rasterises and reads
+    # every page) — off the event loop so one upload can't freeze every
+    # other request, including WebSocket traffic.
+    extraction = await run_in_threadpool(extract_document, response.content)
 
     document = Document(
         id=uuid.UUID(payload.docId),
@@ -102,11 +114,17 @@ async def confirm_upload(
         # and mints a fresh short-lived URL.
         storage_path=payload.publicId,
         uploaded_by=current_user.id,
-        ocr_status=ocr_status,
-        raw_text=raw_text,
+        ocr_status=extraction.status,
+        raw_text=extraction.text,
+        text_source=extraction.text_source,
+        ocr_confidence=extraction.confidence,
         statutes=[],
     )
     db.add(document)
+    db.flush()
+    # Key facts (FIR number, sections, dates), each with its own
+    # confidence and review status — see field_extraction.py.
+    field_rows = add_fields_for_document(db, document, extraction)
 
     case = db.get(Case, case_id)
     case.document_count += 1
@@ -114,7 +132,15 @@ async def confirm_upload(
     db.commit()
     ws_manager.broadcast_case_sync(case_id, {"type": "documents_changed", "caseId": str(case_id)})
 
-    return ConfirmUploadResponse(docId=payload.docId, ocrStatus=ocr_status, hasText=raw_text is not None)
+    return ConfirmUploadResponse(
+        docId=payload.docId,
+        ocrStatus=extraction.status,
+        hasText=extraction.text is not None,
+        textSource=extraction.text_source,
+        ocrConfidence=extraction.confidence,
+        ocrTruncated=extraction.truncated,
+        fieldsNeedingReview=sum(1 for f in field_rows if f.status == "needs_review"),
+    )
 
 
 @router.get("/cases/{case_id}/documents", response_model=list[DocumentItem])
@@ -125,7 +151,8 @@ def list_documents(
 ) -> list[DocumentItem]:
     documents = db.scalars(
         select(Document).where(Document.case_id == case_id).order_by(Document.uploaded_at.asc())
-    )
+    ).all()
+    fields = fields_by_document(db, case_id)
     return [
         DocumentItem(
             id=str(d.id),
@@ -135,7 +162,14 @@ def list_documents(
             uploadedAt=d.uploaded_at,
             ocrStatus=d.ocr_status,
             rawText=d.raw_text,
+            textSource=d.text_source,
+            ocrConfidence=d.ocr_confidence,
             statutes=d.statutes,
+            fields=[field_to_item(f) for f in fields.get(d.id, [])],
+            missingFacts=[
+                MissingFact(kind=kind, role=role, label=field_label(kind, role))
+                for kind, role in document_missing_facts(d, fields.get(d.id, []))
+            ],
         )
         for d in documents
     ]
