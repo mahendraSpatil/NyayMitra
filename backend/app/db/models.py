@@ -183,6 +183,13 @@ class CaseEvent(Base):
     """
 
     __tablename__ = "case_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type in ('charge_sheet_filed', 'bail_application_submitted', "
+            "'bail_order_issued', 'remand_extended', 'other')",
+            name="ck_case_events_event_type",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     case_id: Mapped[uuid.UUID] = mapped_column(
@@ -190,6 +197,11 @@ class CaseEvent(Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     event_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Free-text title covers the specific "what happened" (e.g. "Charge
+    # sheet filed at Sessions Court"); event_type is the small, fixed
+    # category the UI groups/icons by — same split as documents.doc_type
+    # vs. a document's own filename would be.
+    event_type: Mapped[str] = mapped_column(String, nullable=False, default="other")
     done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = _created_at()
 

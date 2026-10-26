@@ -92,6 +92,29 @@ class CaseService {
     }
   }
 
+  /// Logs a non-hearing Case Timeline milestone (charge sheet filed, bail
+  /// application submitted, ...) — the write path case_events had none
+  /// of until this. Manager-only, same as addHearing: reading the
+  /// timeline is every case member's; adding to it is the manager's.
+  Future<void> addCaseEvent({
+    required String caseId,
+    required String title,
+    DateTime? date,
+    String eventType = 'other',
+  }) async {
+    final response = await _apiClient.post(
+      '/cases/$caseId/events',
+      body: {
+        'title': title,
+        if (date != null) 'date': date.toUtc().toIso8601String(),
+        'eventType': eventType,
+      },
+    );
+    if (response.statusCode != 200) {
+      throw CaseServiceException(_readableError(response));
+    }
+  }
+
   Future<void> deleteHearing({
     required String caseId,
     required String hearingId,

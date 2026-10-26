@@ -9,6 +9,8 @@ import '../services/auth_service.dart';
 import '../services/case_data_service.dart';
 import '../services/invite_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/case_event_form_sheet.dart';
+import '../widgets/document_tile.dart';
 import '../widgets/hearing_form_sheet.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/upload_document_sheet.dart';
@@ -147,6 +149,13 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   label: const Text('Invite Family Member'),
                   onPressed: () => _generateInvite(context),
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('Log Case Event'),
+                  onPressed: () =>
+                      openCaseEventFormSheet(context, caseId: widget.caseId),
+                ),
               ],
               const SizedBox(height: 24),
               Row(
@@ -239,7 +248,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   return Column(
                     children: [
                       for (final document in documents)
-                        _DocumentTile(document: document),
+                        DocumentTile(caseId: widget.caseId, document: document),
                     ],
                   );
                 },
@@ -362,32 +371,6 @@ class _HearingTile extends StatelessWidget {
           style: AppTextStyles.cardSubtitle,
         ),
         trailing: StatusBadge(label: hearing.status, tone: _tone),
-      ),
-    );
-  }
-}
-
-class _DocumentTile extends StatelessWidget {
-  const _DocumentTile({required this.document});
-
-  final CaseDocument document;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: const Icon(
-          Icons.description_outlined,
-          color: AppColors.inkMuted,
-        ),
-        title: Text(document.docType.label, style: AppTextStyles.cardTitle),
-        subtitle: Text(
-          document.uploadedAt == null
-              ? 'Upload pending'
-              : _dateFormat.format(document.uploadedAt!),
-          style: AppTextStyles.cardSubtitle,
-        ),
       ),
     );
   }

@@ -56,7 +56,10 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
   }
 
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
     if (result.isEmpty) return;
     setState(() => _attachedFile = result.single);
   }
@@ -66,11 +69,13 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
     if (text.isEmpty || _isSending) return;
 
     setState(() {
-      _messages.add(ChatMessage(
-        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-        role: ChatRole.user,
-        text: text,
-      ));
+      _messages.add(
+        ChatMessage(
+          id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+          role: ChatRole.user,
+          text: text,
+        ),
+      );
       _inputController.clear();
       _attachedFile = null;
       _isSending = true;
@@ -82,16 +87,25 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
       final reply = await _chatService.sendMessage(text, caseId: widget.caseId);
       if (!mounted) return;
       setState(() {
-        _messages.add(ChatMessage(
-          id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-          role: ChatRole.assistant,
-          text: reply.text,
-          citedDocuments: reply.citedDocuments,
-          verificationStatus:
-              reply.verified ? VerificationStatus.verified : VerificationStatus.unverified,
-          citedSections: reply.citedSections,
-        ));
+        _messages.add(
+          ChatMessage(
+            id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+            role: ChatRole.assistant,
+            text: reply.text,
+            citedDocuments: reply.citedDocuments,
+            verificationStatus: reply.verified
+                ? VerificationStatus.verified
+                : VerificationStatus.unverified,
+            citedSections: reply.citedSections,
+          ),
+        );
         _isSending = false;
+      });
+    } on ChatUnavailableException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSending = false;
+        _errorText = e.toString();
       });
     } catch (e) {
       if (!mounted) return;
@@ -131,7 +145,8 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
               padding: const EdgeInsets.all(16),
               children: [
                 const _AssistantGreeting(),
-                for (final message in _messages) _MessageBubble(message: message),
+                for (final message in _messages)
+                  _MessageBubble(message: message),
                 if (_isSending) const _PendingBubble(),
                 if (_errorText != null) _ErrorBubble(text: _errorText!),
               ],
@@ -153,21 +168,30 @@ class _ChatSheetBodyState extends State<_ChatSheetBody> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.attach_file, color: AppColors.inkMuted),
+                  icon: const Icon(
+                    Icons.attach_file,
+                    color: AppColors.inkMuted,
+                  ),
                   onPressed: _pickAttachment,
                 ),
                 Expanded(
                   child: TextField(
                     controller: _inputController,
                     style: AppTextStyles.body,
-                    decoration: const InputDecoration(hintText: 'Ask in plain language…'),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask in plain language…',
+                    ),
                     onSubmitted: (_) => _send(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: AppColors.ink),
-                  icon: const Icon(Icons.send, color: AppColors.surface, size: 18),
+                  icon: const Icon(
+                    Icons.send,
+                    color: AppColors.surface,
+                    size: 18,
+                  ),
                   onPressed: _isSending ? null : _send,
                 ),
               ],
@@ -195,7 +219,10 @@ class _Header extends StatelessWidget {
           const Expanded(
             child: Text('AI Legal Assistant', style: AppTextStyles.portalTitle),
           ),
-          IconButton(icon: const Icon(Icons.close, color: AppColors.inkMuted), onPressed: onClose),
+          IconButton(
+            icon: const Icon(Icons.close, color: AppColors.inkMuted),
+            onPressed: onClose,
+          ),
         ],
       ),
     );
@@ -213,7 +240,8 @@ class _AssistantGreeting extends StatelessWidget {
     return const Align(
       alignment: Alignment.centerLeft,
       child: _Bubble(
-        text: 'Namaste! I am NyayMitra AI. You can ask questions or upload a legal '
+        text:
+            'Namaste! I am NyayMitra AI. You can ask questions or upload a legal '
             'document for me to analyze.',
         isUser: false,
       ),
@@ -232,7 +260,9 @@ class _MessageBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Align(
             alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -241,7 +271,8 @@ class _MessageBubble extends StatelessWidget {
           if (!isUser) ...[
             const SizedBox(height: 6),
             VerificationTag(
-              verified: message.verificationStatus == VerificationStatus.verified,
+              verified:
+                  message.verificationStatus == VerificationStatus.verified,
               citedSections: message.citedSections,
             ),
             if (message.citedDocuments.isNotEmpty) ...[
@@ -269,10 +300,25 @@ class _PendingBubble extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: _Bubble(
           isUser: false,
-          child: SizedBox(
-            height: 16,
-            width: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.inkMuted),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 16,
+                width: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.inkMuted,
+                ),
+              ),
+              SizedBox(width: 10),
+              // A single fixed label, not staged text — there's no
+              // signal from the backend distinguishing "reading your
+              // document" from "the model is still generating," and
+              // guessing which phase is active would just be wrong some
+              // of the time for no real benefit.
+              Text('Reading your document…', style: AppTextStyles.body),
+            ],
           ),
         ),
       ),
@@ -293,8 +339,14 @@ class _ErrorBubble extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: AppColors.dangerBg, borderRadius: BorderRadius.circular(14)),
-          child: Text(text, style: AppTextStyles.body.copyWith(color: AppColors.danger)),
+          decoration: BoxDecoration(
+            color: AppColors.dangerBg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            text,
+            style: AppTextStyles.body.copyWith(color: AppColors.danger),
+          ),
         ),
       ),
     );
@@ -302,7 +354,8 @@ class _ErrorBubble extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.isUser, this.text, this.child}) : assert(text != null || child != null);
+  const _Bubble({required this.isUser, this.text, this.child})
+    : assert(text != null || child != null);
 
   final bool isUser;
   final String? text;
@@ -311,17 +364,22 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.75,
+      ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isUser ? AppColors.ink : AppColors.border,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: child ??
+        child:
+            child ??
             Text(
               text!,
-              style: AppTextStyles.body.copyWith(color: isUser ? AppColors.surface : AppColors.ink),
+              style: AppTextStyles.body.copyWith(
+                color: isUser ? AppColors.surface : AppColors.ink,
+              ),
             ),
       ),
     );

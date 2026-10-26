@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
@@ -78,6 +79,21 @@ class AuthService {
   }
 
   Future<void> signIn({required String email, required String password}) async {
+    // Normalized here, not just trimmed in the sign-in form: the backend
+    // stores/compares email the same way (RegisterRequest/LoginRequest's
+    // _normalize_email, backend/app/models/auth.py) so a login attempt
+    // and the registration it's matching against can never disagree on
+    // case or stray whitespace — a trailing space from a paste, or a
+    // capitalized first letter some platform's autofill added, used to
+    // read as "wrong password" (a 401 indistinguishable from a real one)
+    // rather than what it actually was.
+    final normalizedEmail = _normalizeEmail(email);
+    final requestBody = {'email': normalizedEmail, 'password': password};
+    debugPrint(
+      'AuthService.signIn: POST /auth/login body='
+      '${jsonEncode({...requestBody, 'password': '<redacted>'})}',
+    );
+
     // Plain http.post, not ApiClient: a wrong-password 401 here means
     // exactly that, not an expired access token, and ApiClient's 401
     // handling would otherwise try to refresh (using whatever stale or
@@ -87,7 +103,7 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$apiBaseUrl/auth/login'),
       headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: jsonEncode(requestBody),
     );
     if (response.statusCode != 200) {
       throw AuthServiceException(_readableError(response));
@@ -104,6 +120,42 @@ class AuthService {
       throw AuthServiceException('Signed in, but could not load your profile.');
     }
     _applyProfile(jsonDecode(meResponse.body) as Map<String, dynamic>);
+  }
+
+  /// Deliberately does not sign the caller in — the backend returns 201
+  /// with no tokens (self-declared roles plus instant authentication
+  /// would mean anyone who submits this form is immediately acting as
+  /// whatever role they typed). Callers send the user to sign in
+  /// explicitly afterward; RootRouter has nothing to react to here since
+  /// no session was created.
+  Future<void> register({
+    required String email,
+    required String password,
+    required String displayName,
+    required String role,
+  }) async {
+    // Same normalization signIn applies — this is what makes it safe for
+    // signIn to assume a stored email is already trimmed/lowercased: both
+    // paths agree on the same rule (see signIn's comment).
+    final requestBody = {
+      'email': _normalizeEmail(email),
+      'password': password,
+      'displayName': displayName,
+      'role': role,
+    };
+    debugPrint(
+      'AuthService.register: POST /auth/register body='
+      '${jsonEncode({...requestBody, 'password': '<redacted>'})}',
+    );
+
+    final response = await http.post(
+      Uri.parse('$apiBaseUrl/auth/register'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode(requestBody),
+    );
+    if (response.statusCode != 201) {
+      throw AuthServiceException(_readableError(response));
+    }
   }
 
   Future<void> signOut() async {
@@ -140,6 +192,12 @@ class AuthService {
     _current = UserProfile.fromApi(json);
     _controller.add(_current);
   }
+
+  // Mirrors backend/app/models/auth.py's _normalize_email exactly — same
+  // rule, applied on both sides, is what makes it safe to apply at all:
+  // if only one side normalized, an already-registered mixed-case email
+  // would still never match a lowercased login attempt.
+  String _normalizeEmail(String email) => email.trim().toLowerCase();
 
   String _readableError(http.Response response) {
     try {

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG BUILDS ONLY - this file lives under src/debug/, so Gradle's
+  resource merger only includes it in debug (and profile, if it ever
+  references it) builds. There is no src/release/ override, so a release
+  build cannot pick this up; do not move or copy this into src/main/.
+
+  Permits plaintext HTTP to localhost/127.0.0.1 only, for a phone plugged
+  in over USB with "adb reverse tcp:8000 tcp:8000" running - that forwards
+  the phone's own localhost:8000 to the backend on your laptop, so the
+  build-time API_BASE_URL dart-define should point at http://127.0.0.1:8000
+  (see client/lib/core/config/api_config.dart and README.md).
+
+  Not included: a true private-network-range rule (10.x, 172.16-31.x,
+  192.168.x). Android's Network Security Config has no CIDR/IP-range
+  syntax - a <domain> entry only matches one exact hostname or IP literal,
+  never a range - so that can't be expressed here regardless of how this
+  file is written. It's also unnecessary for the adb reverse flow above,
+  which never touches a LAN address at all. If you later need cleartext to
+  an actual LAN IP (e.g. testing over Wi-Fi instead of USB), add that
+  literal address as its own <domain> entry below rather than widening this
+  to an unscoped cleartextTrafficPermitted="true".
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

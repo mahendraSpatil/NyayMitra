@@ -40,16 +40,19 @@ from fastapi.routing import APIRoute, APIWebSocketRoute, iter_route_contexts
 from ..dependencies import get_current_user
 
 # "Public" specifically means: carries no get_current_user (Bearer
-# access-token) check. /api/v2/auth/login takes no credential at all;
-# /health takes none either. /api/v2/auth/refresh and .../auth/logout
-# both DO require a credential — a valid refresh token — but it's
-# presented and checked as a request-body field against refresh_tokens,
-# not as a Bearer access token via get_current_user, so this checker
-# (which only recognizes the latter) can't see it. That's a different,
-# equally real authorization mechanism, not a hole: refresh/logout's
-# whole point is to work even when the access token itself has expired.
+# access-token) check. /api/v2/auth/login and /auth/register both take no
+# credential at all (that's how an account or a session comes to exist in
+# the first place); /health takes none either. /api/v2/auth/refresh and
+# .../auth/logout both DO require a credential — a valid refresh token —
+# but it's presented and checked as a request-body field against
+# refresh_tokens, not as a Bearer access token via get_current_user, so
+# this checker (which only recognizes the latter) can't see it. That's a
+# different, equally real authorization mechanism, not a hole: refresh/
+# logout's whole point is to work even when the access token itself has
+# expired.
 PUBLIC_ALLOWLIST = {
     ("POST", "/api/v2/auth/login"),
+    ("POST", "/api/v2/auth/register"),
     ("POST", "/api/v2/auth/refresh"),
     ("POST", "/api/v2/auth/logout"),
     ("GET", "/health"),

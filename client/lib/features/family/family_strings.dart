@@ -27,6 +27,9 @@ const Map<String, Map<String, String>> _familyStringsTable = {
     'actionsSectionHeader': 'Actions & Submissions',
     'uploadButtonLabel': 'Upload Case Document / ID Proof',
     'caseTimelineSectionHeader': 'Case Timeline',
+    'noCaseActivity': 'No case activity recorded yet.',
+    'documentsSectionHeader': 'Documents',
+    'noDocumentsYet': 'No documents yet.',
     'noCaseFound': 'No case found.',
     'joinCaseButtonLabel': 'Have an invite code? Join a case',
     'redeemInviteDialogTitle': 'Join a Case',
@@ -67,6 +70,9 @@ class FamilyStrings {
   String get actionsSectionHeader => _t('actionsSectionHeader');
   String get uploadButtonLabel => _t('uploadButtonLabel');
   String get caseTimelineSectionHeader => _t('caseTimelineSectionHeader');
+  String get noCaseActivity => _t('noCaseActivity');
+  String get documentsSectionHeader => _t('documentsSectionHeader');
+  String get noDocumentsYet => _t('noDocumentsYet');
   String get noCaseFound => _t('noCaseFound');
   String get joinCaseButtonLabel => _t('joinCaseButtonLabel');
   String get redeemInviteDialogTitle => _t('redeemInviteDialogTitle');

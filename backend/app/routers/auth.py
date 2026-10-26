@@ -1,15 +1,26 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db.base import get_db
 from ..db.models import RefreshToken, User
 from ..dependencies import CurrentUser, get_current_user
-from ..models.auth import LoginRequest, LogoutRequest, MeResponse, RefreshRequest, TokenResponse
-from ..security.passwords import verify_password
+from ..models.auth import (
+    LoginRequest,
+    LogoutRequest,
+    MeResponse,
+    RefreshRequest,
+    RegisterRequest,
+    RegisterResponse,
+    TokenResponse,
+)
+from ..security import rate_limit
+from ..security.passwords import hash_password, verify_password
+from ..security.password_policy import validate_password
 from ..security.tokens import (
     REFRESH_TOKEN_TTL,
     create_access_token,
@@ -47,6 +58,58 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return _issue_tokens(db, user)
+
+
+@router.post("/auth/register", response_model=RegisterResponse, status_code=201)
+def register(
+    payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
+) -> RegisterResponse:
+    """Deliberately does not sign the caller in — role is self-declared
+    (see RegisterRequest and NyayMitra.md's "Future work: role
+    verification"), and issuing tokens here would mean anyone who submits
+    this form is immediately acting as whatever role they typed, with no
+    step between claiming a role and using it. The client shows a success
+    message and sends the caller to /auth/login instead.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    limit_exceeded = rate_limit.check_and_record(client_ip)
+    if limit_exceeded is not None:
+        logger.warning(
+            "registration rejected: %s limit exceeded (ip=%s)", limit_exceeded, client_ip
+        )
+        raise HTTPException(
+            status_code=429, detail="Too many registration attempts. Try again later."
+        )
+
+    validate_password(payload.password)
+
+    # Same generic message on every rejection path below, whether the
+    # email is taken or the race with a concurrent registration lost —
+    # distinguishing "taken" from "something else went wrong" here isn't
+    # something this endpoint needs to promise, and echoing "this email
+    # already exists" invites using registration as an account-enumeration
+    # oracle the same way login's error message deliberately avoids.
+    existing = db.scalar(select(User).where(User.email == payload.email))
+    if existing is not None:
+        raise HTTPException(status_code=409, detail="Could not register with that email.")
+
+    user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+        display_name=payload.displayName,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two concurrent registrations for the same email racing past the
+        # check above — the unique constraint on users.email is the real
+        # guard, this check is just the common-case fast path.
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Could not register with that email.")
+
+    return RegisterResponse(id=str(user.id), email=user.email, role=user.role)
 
 
 @router.post("/auth/refresh", response_model=TokenResponse)

@@ -15,6 +15,8 @@ from sqlalchemy import select
 from app.db.base import SessionLocal
 from app.db.models import Case, CaseMember, InviteAttempt, User
 from app.main import app
+from app.security import rate_limit
+from app.services.v2.connections import manager as ws_manager
 
 _PASSWORD = "NyayMitra@Dev1"
 _EMAILS = {
@@ -22,6 +24,20 @@ _EMAILS = {
     "ngo": "ngo@nyaymitra.test",
     "family": "family@nyaymitra.test",
 }
+
+
+@pytest.fixture(autouse=True)
+def _reset_register_rate_limit():
+    """app/security/rate_limit.py's counters are module-global, in-process
+    state shared by every test that runs in this same pytest invocation —
+    without resetting between tests, a handful of tests spread across
+    different files that each call POST /auth/register a couple of times
+    (test_auth.py, test_relationships.py's `people` fixture) accumulate
+    against the same PER_IP_LIMIT and start failing with 429s that have
+    nothing to do with what any individual test is actually checking.
+    """
+    rate_limit.reset()
+    yield
 
 
 @pytest.fixture(scope="session")
@@ -33,6 +49,31 @@ def db():
 @pytest.fixture(scope="session")
 def client():
     return TestClient(app)
+
+
+@pytest.fixture
+def ws_client():
+    """Context-managed, unlike the plain `client` fixture above — lifespan
+    startup (which binds the connections manager to the event loop,
+    main.py) and WebSocket support both need the `with` form.
+
+    ws_manager (app/services/v2/connections.py) is a module-global
+    singleton, so its bound event loop outlives this fixture's own `with`
+    block in the pytest process's memory — once that block exits, Python
+    closes the loop, but nothing tells ws_manager to stop pointing at it.
+    A later test that never uses ws_client at all (test_invites.py's
+    invite redemption, say, which still broadcasts case_members_changed
+    through the plain session-scoped `client` fixture) would otherwise
+    hit "RuntimeError: Event loop is closed" trying to schedule a
+    broadcast on a loop that's gone — not a bug in that test, a leak from
+    this one. Rebinding to None on teardown makes ws_manager fall back to
+    its own "used before bind_loop()" warning-and-drop path instead,
+    which is exactly what should happen for a broadcast fired outside any
+    live lifespan.
+    """
+    with TestClient(app) as c:
+        yield c
+    ws_manager._loop = None
 
 
 @pytest.fixture(scope="session")

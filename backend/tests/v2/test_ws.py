@@ -12,12 +12,10 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.config import settings
 from app.db.models import CaseMember
-from app.main import app
 from app.security import ws_auth
 from app.services.v2.connections import manager as ws_manager
 
@@ -36,16 +34,6 @@ def _short_lived_token(user_id: uuid.UUID, role: str, *, seconds: float) -> str:
     now = datetime.now(timezone.utc)
     payload = {"sub": str(user_id), "role": role, "iat": now, "exp": now + timedelta(seconds=seconds)}
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
-
-
-@pytest.fixture
-def ws_client():
-    """Context-managed, unlike the plain `client` fixture in conftest.py
-    — lifespan startup (which binds the connections manager to the event
-    loop, main.py) and WebSocket support both need the `with` form.
-    """
-    with TestClient(app) as c:
-        yield c
 
 
 def test_case_member_can_connect_and_non_member_is_rejected(

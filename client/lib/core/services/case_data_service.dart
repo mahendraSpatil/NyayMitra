@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import '../models/case.dart';
 import '../models/case_document.dart';
+import '../models/case_event.dart';
 import '../models/hearing.dart';
 import '../models/task.dart';
 import 'api_client.dart';
@@ -84,6 +85,19 @@ class CaseDataService {
       },
       path: '/cases/$caseId',
       fromApi: Case.fromApi,
+    );
+  }
+
+  /// Non-hearing Case Timeline milestones for a case — merged with
+  /// caseHearings() by the caller (the Family Portal's Case Timeline;
+  /// see family_home.dart) into one chronological display. Adding one
+  /// goes through CaseService, same split as hearings.
+  Stream<List<CaseEvent>> caseEvents(String caseId) {
+    return _listStream<CaseEvent>(
+      channel: WsChannel('/ws/cases/$caseId'),
+      matchTypes: const {'case_events_changed'},
+      path: '/cases/$caseId/events',
+      fromApi: CaseEvent.fromApi,
     );
   }
 

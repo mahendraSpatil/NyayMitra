@@ -4,4 +4,15 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Local-development-only: permits cleartext HTTP to localhost/127.0.0.1
+         so a phone plugged in over USB, with "adb reverse tcp:8000 tcp:8000"
+         running, can reach the backend on your laptop (see
+         res/xml/network_security_config.xml for the exact scope, and why
+         that file being debug-only is what actually keeps this out of a
+         release build — this attribute merges into that same debug-only
+         <application> element, never src/main/'s). Must not reach a release
+         build.
+    -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
 </manifest>

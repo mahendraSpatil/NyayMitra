@@ -15,6 +15,20 @@ UserRole? parseUserRole(String? value) {
   }
 }
 
+/// The inverse of [parseUserRole] — used by the register form, which
+/// sends a role string the caller picked, not one the backend already
+/// gave it.
+String roleToApiValue(UserRole role) {
+  switch (role) {
+    case UserRole.advocate:
+      return 'advocate';
+    case UserRole.ngo:
+      return 'ngo';
+    case UserRole.family:
+      return 'family';
+  }
+}
+
 /// The signed-in user's own profile. Display-only: authorization always
 /// reads `role` from the JWT access token, never from this.
 class UserProfile {

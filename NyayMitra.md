@@ -73,9 +73,33 @@ Custom JWT, not a third-party identity provider:
   revoking the whole session.
 - Tokens live in `flutter_secure_storage` (platform keystore/keychain),
   never `SharedPreferences`.
+- **Registration** (`POST /auth/register`) creates the `users` row
+  (Argon2id-hashed password, same as `scripts/seed.py`'s accounts) and
+  returns `201` with no tokens — it does not sign the caller in. Roles are
+  self-declared at this step (see "Future work: role verification" below),
+  so instant authentication would mean anyone who submits the form is
+  immediately acting as whatever role they typed; the client sends them to
+  `/auth/login` explicitly instead. Rate-limited two ways
+  (`app/security/rate_limit.py`, in-process, no DB table): per-IP and a
+  higher global ceiling, so one shared address (a campus network, a mobile
+  carrier's NAT) can't get everyone behind it wrongly throttled by the
+  per-IP limit alone. Passwords must be 12+ characters and off a short
+  common-password deny-list (`app/security/password_policy.py`).
 
 A user is routed to exactly one portal based on their own `role` column,
 read from `GET /me`. No in-app role switching.
+
+## Future work: role verification
+
+Advocate and NGO roles are currently self-declared at registration with no
+credential check — `POST /api/v2/auth/register` trusts whatever role the
+client sends. Real verification is out of scope for now but would
+require: **advocate** — Bar Council of India enrollment number, checked
+against the State Bar Council's record; **NGO** — registration details
+(12A/80G or state NGO registration number), checked against the issuing
+authority. Until that exists, treat `role` as a UI routing hint, never as
+proof of professional status — this is why the Flutter register screen
+says so directly, not just in these docs.
 
 ## Authorization
 
@@ -361,15 +385,6 @@ shows the unverified state. Do not stub it to return `True`.
 Build this in order. Each stage should work end-to-end with the later stages
 stubbed before the next one starts.
 
-## Demo data
-
-- *State vs. Ramesh Kumar* — FIR 104/2025, District Court Pune, bail stage,
-  Adv. Rajesh Sharma, next hearing 24 Oct 2026.
-- *State vs. Amit Singh* — FIR 89/2025, Sessions Court Mumbai, document review,
-  next hearing 2 Nov 2026.
-- NGO tasks: bail-bond translation for the Kumar family (high), legal aid
-  coordination for Amit Singh (medium), Yerwada Jail verification visit under
-  436A (scheduled).
 
 ## Working agreement
 

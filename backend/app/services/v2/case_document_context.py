@@ -47,9 +47,26 @@ def fetch_case_document_context(db: Session, case_id: uuid.UUID) -> tuple[list[D
         if not text:
             continue  # no_text_layer / failed / not yet processed — nothing to add
 
-        if total_chars + len(text) > CONTEXT_CHAR_BUDGET:
+        remaining = CONTEXT_CHAR_BUDGET - total_chars
+        if remaining <= 0:
             truncated = True
-            break
+            break  # budget genuinely exhausted — no later document fits either
+
+        if len(text) > remaining:
+            # This one document alone doesn't fit what's left of the
+            # budget — include as much of it as fits rather than
+            # dropping it (and, with the old `break` here, every
+            # document after it too — including one this small that
+            # would have fit easily) entirely. A single oversized
+            # document ahead of it in upload order must never silently
+            # evict everything behind it; that's this function's own
+            # stated purpose above.
+            included.append(
+                DocumentContext(doc_id=str(doc.id), doc_type=doc.doc_type, text=text[:remaining])
+            )
+            total_chars += remaining
+            truncated = True
+            continue
 
         included.append(DocumentContext(doc_id=str(doc.id), doc_type=doc.doc_type, text=text))
         total_chars += len(text)

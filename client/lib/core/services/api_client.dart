@@ -49,6 +49,19 @@ class ApiClient {
 
   Future<String>? _refreshInFlight;
 
+  /// Endpoints that authenticate the caller themselves (or create a new,
+  /// unauthenticated account) — a 401 from either means the credentials
+  /// in the request itself were rejected, never an expired access token,
+  /// so feeding it through the refresh-and-retry path below would be
+  /// nonsensical: it would refresh using whatever (possibly unrelated,
+  /// possibly stale) token happens to be in storage and then retry the
+  /// exact same failing request. AuthService already calls both of these
+  /// via plain http.post specifically to bypass ApiClient entirely (see
+  /// its signIn/register) — this is the backstop in case that ever
+  /// changes, so "never retried" is a property of ApiClient itself, not
+  /// just a convention every caller has to remember.
+  static const _noRetryPaths = {'/auth/login', '/auth/register'};
+
   Future<http.Response> get(String path) => _send('GET', path);
 
   Future<http.Response> post(String path, {Object? body}) =>
@@ -70,7 +83,13 @@ class ApiClient {
     var accessToken = await _tokenStorage.accessToken;
     var response = await _rawSend(method, path, accessToken, body);
 
-    if (response.statusCode == 401) {
+    // At most one retry, ever — this branch runs once per call to
+    // _send() (there is no loop, no recursion here), and only for paths
+    // that actually mean "your access token expired," never for a 401
+    // that means "the credentials themselves are wrong."  A refresh that
+    // itself fails throws out of _refreshAccessToken() below and this
+    // function returns without a second attempt at anything.
+    if (response.statusCode == 401 && !_noRetryPaths.contains(path)) {
       try {
         accessToken = await _refreshAccessToken();
       } on ApiUnauthorizedException {

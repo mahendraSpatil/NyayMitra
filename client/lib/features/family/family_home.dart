@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/models/case.dart';
+import '../../core/models/case_document.dart';
+import '../../core/models/case_event.dart';
+import '../../core/models/hearing.dart';
 import '../../core/screens/case_detail_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/case_data_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/case_timeline.dart';
+import '../../core/widgets/document_tile.dart';
 import '../../core/widgets/nyaymitra_fab.dart';
 import '../../core/widgets/portal_sign_out_button.dart';
 import '../../core/widgets/stat_card.dart';
@@ -38,6 +42,25 @@ class _FamilyHomeState extends State<FamilyHome> {
   late final Stream<List<Case>> _casesStream = _caseDataService.familyCases(
     _uid,
   );
+
+  // Lazily created once the family's one case is known (unlike
+  // _casesStream, theCase.id isn't available until the cases stream
+  // itself delivers), then kept stable across rebuilds by guarding on
+  // caseId — a fresh Stream instance per build() would tear down and
+  // re-subscribe the WebSocket channel every time, the same problem the
+  // other *Stream fields avoid by being late final.
+  String? _caseScopedStreamsCaseId;
+  Stream<List<Hearing>>? _hearingsStream;
+  Stream<List<CaseEvent>>? _eventsStream;
+  Stream<List<CaseDocument>>? _documentsStream;
+
+  void _ensureCaseScopedStreams(String caseId) {
+    if (_caseScopedStreamsCaseId == caseId) return;
+    _caseScopedStreamsCaseId = caseId;
+    _hearingsStream = _caseDataService.caseHearings(caseId);
+    _eventsStream = _caseDataService.caseEvents(caseId);
+    _documentsStream = _caseDataService.caseDocuments(caseId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +143,7 @@ class _FamilyHomeState extends State<FamilyHome> {
         final theCase = cases.first;
         final isSelfManaged =
             theCase.ownerType == 'family' && theCase.createdBy == _uid;
+        _ensureCaseScopedStreams(theCase.id);
 
         return _scaffold(
           context: context,
@@ -177,13 +201,22 @@ class _FamilyHomeState extends State<FamilyHome> {
                 style: AppTextStyles.portalTitle,
               ),
               const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: CaseTimeline(
-                    entries: _timelineEntries(theCase, locale),
-                  ),
-                ),
+              _CaseTimelineSection(
+                hearingsStream: _hearingsStream!,
+                eventsStream: _eventsStream!,
+                locale: locale,
+                strings: strings,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                strings.documentsSectionHeader,
+                style: AppTextStyles.portalTitle,
+              ),
+              const SizedBox(height: 12),
+              _DocumentsSection(
+                caseId: theCase.id,
+                documentsStream: _documentsStream!,
+                strings: strings,
               ),
               const SizedBox(height: 80),
             ],
@@ -222,19 +255,210 @@ class _FamilyHomeState extends State<FamilyHome> {
       body: body,
     );
   }
+}
 
-  List<CaseTimelineEntry> _timelineEntries(Case theCase, String locale) {
-    final dateFormat = DateFormat('d MMM yyyy', locale);
-    return theCase.timeline
-        .map(
-          (entry) => CaseTimelineEntry(
-            title: entry.title,
-            dateLabel: entry.date == null ? '' : dateFormat.format(entry.date!),
-            done: entry.done,
-          ),
-        )
-        .toList();
+/// The merged Case Timeline: hearings (from CaseDataService.caseHearings)
+/// plus non-hearing milestones (caseEvents), in date order. Two separate
+/// REST+WebSocket streams, not one combined endpoint — hearings and
+/// case_events are different tables with different write paths
+/// (backend/app/routers/v2/{hearings,case_events}.py), so merging them
+/// is a client-side concern the same way the old cases.timeline array
+/// never distinguished the two either.
+class _CaseTimelineSection extends StatelessWidget {
+  const _CaseTimelineSection({
+    required this.hearingsStream,
+    required this.eventsStream,
+    required this.locale,
+    required this.strings,
+  });
+
+  final Stream<List<Hearing>> hearingsStream;
+  final Stream<List<CaseEvent>> eventsStream;
+  final String locale;
+  final FamilyStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Hearing>>(
+      stream: hearingsStream,
+      builder: (context, hearingsSnapshot) {
+        return StreamBuilder<List<CaseEvent>>(
+          stream: eventsStream,
+          builder: (context, eventsSnapshot) {
+            final waiting =
+                hearingsSnapshot.connectionState == ConnectionState.waiting ||
+                eventsSnapshot.connectionState == ConnectionState.waiting;
+            if (waiting) {
+              return const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+
+            final error = hearingsSnapshot.error ?? eventsSnapshot.error;
+            if (error != null) {
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Could not load case activity: $error',
+                    style: AppTextStyles.cardSubtitle.copyWith(
+                      color: AppColors.accentRed,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final entries = _mergedTimelineEntries(
+              hearingsSnapshot.data ?? const <Hearing>[],
+              eventsSnapshot.data ?? const <CaseEvent>[],
+              locale,
+            );
+
+            // An empty bordered rectangle reads as a broken widget, not
+            // as "nothing has happened on this case yet" — say so
+            // directly instead of rendering CaseTimeline with zero
+            // entries (which is just an empty Column).
+            if (entries.isEmpty) {
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    strings.noCaseActivity,
+                    style: AppTextStyles.cardSubtitle,
+                  ),
+                ),
+              );
+            }
+
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: CaseTimeline(entries: entries),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
+}
+
+/// A family member could upload a document (the "Upload Case Document /
+/// ID Proof" button above) but had no way to see what was actually
+/// there — same DocumentTile CaseDetailScreen uses, same per-view
+/// signed-URL mint, so a family member and their advocate see (and open)
+/// documents through the exact same code path.
+class _DocumentsSection extends StatelessWidget {
+  const _DocumentsSection({
+    required this.caseId,
+    required this.documentsStream,
+    required this.strings,
+  });
+
+  final String caseId;
+  final Stream<List<CaseDocument>> documentsStream;
+  final FamilyStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<CaseDocument>>(
+      stream: documentsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Text(
+            'Could not load documents: ${snapshot.error}',
+            style: AppTextStyles.cardSubtitle.copyWith(
+              color: AppColors.accentRed,
+            ),
+          );
+        }
+
+        final documents = snapshot.data ?? const <CaseDocument>[];
+        if (documents.isEmpty) {
+          return Text(
+            strings.noDocumentsYet,
+            style: AppTextStyles.cardSubtitle,
+          );
+        }
+
+        return Column(
+          children: [
+            for (final document in documents)
+              DocumentTile(caseId: caseId, document: document),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimelineSource {
+  const _TimelineSource({required this.title, this.date, required this.done});
+
+  final String title;
+  final DateTime? date;
+  final bool done;
+}
+
+/// Chronological merge of hearings + case_events into CaseTimeline's
+/// presentational shape. "Done" (filled dot) isn't purely the stored
+/// status/done flag — a hearing already in the past reads as done even
+/// if nobody went back and marked its status 'completed', and the same
+/// for a case_event whose done flag was never explicitly set. Entries
+/// with no date can't be placed chronologically, so they sort last
+/// rather than arbitrarily first — matching the backend's NULLS LAST
+/// ordering for case_events (app/routers/v2/case_events.py).
+List<CaseTimelineEntry> _mergedTimelineEntries(
+  List<Hearing> hearings,
+  List<CaseEvent> events,
+  String locale,
+) {
+  final dateFormat = DateFormat('d MMM yyyy', locale);
+  final now = DateTime.now();
+
+  final sources = <_TimelineSource>[
+    for (final hearing in hearings)
+      _TimelineSource(
+        title: hearing.purpose.isEmpty ? 'Hearing' : hearing.purpose,
+        date: hearing.date,
+        done:
+            hearing.status == 'completed' ||
+            (hearing.date != null && hearing.date!.isBefore(now)),
+      ),
+    for (final event in events)
+      _TimelineSource(
+        title: event.title,
+        date: event.date,
+        done: event.done || (event.date != null && event.date!.isBefore(now)),
+      ),
+  ];
+
+  sources.sort((a, b) {
+    if (a.date == null && b.date == null) return 0;
+    if (a.date == null) return 1;
+    if (b.date == null) return -1;
+    return a.date!.compareTo(b.date!);
+  });
+
+  return sources
+      .map(
+        (source) => CaseTimelineEntry(
+          title: source.title,
+          dateLabel: source.date == null ? '' : dateFormat.format(source.date!),
+          done: source.done,
+        ),
+      )
+      .toList();
 }
 
 class _FamilyStatRow extends StatelessWidget {
