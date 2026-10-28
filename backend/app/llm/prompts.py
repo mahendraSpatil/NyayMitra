@@ -20,6 +20,7 @@ Rules:
 - Do not tell the user what to decide or predict the outcome. For any decision, tell them to ask their lawyer.
 - When you mention a law, write it as "Section <number> <Act>", for example "Section 436A CrPC" or "Section 479 BNSS".
 - Use short sentences and everyday words. Answer in English.
+- Answer in your own words, in 2 to 5 short sentences. Never copy the DOCUMENT EXCERPT, its [bracketed labels] or any IDs into your answer, and never repeat the question.
 - If the document does not contain the answer, say so plainly.
 - Text in square brackets such as "[hearing date unclear, not yet confirmed]" or "[unclear number]" marks a detail that has not been checked yet. Never guess it and never copy the brackets into your answer. Say that this detail has not been confirmed yet and that their lawyer can check it on the original document."""
 
@@ -39,8 +40,10 @@ def select_excerpt(
     limit = limit if limit is not None else settings.max_excerpt_chars
 
     entries: list[tuple[str, str]] = []  # (doc_label, paragraph)
-    for doc in documents:
-        label = f"{doc.doc_type} ({doc.doc_id})"
+    for index, doc in enumerate(documents, start=1):
+        # No database IDs: the model copies whatever it sees, and a UUID in
+        # an answer means nothing to a family.
+        label = f"{doc.doc_type.replace('_', ' ')} #{index}"
         if doc.text_source == "ocr":
             label += " — scanned copy, read by OCR"
         for para in re.split(r"\n\s*\n", doc.text):

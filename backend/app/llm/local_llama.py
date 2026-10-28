@@ -104,9 +104,19 @@ class LocalLlamaProvider(LLMProvider):
         except httpx.HTTPError as exc:
             raise LLMUnavailable(f"Local model at {self.base_url} failed: {exc}") from exc
 
-        data = resp.json()
-        usage = data.get("usage") or {}
-        raw_text = data["choices"][0]["message"]["content"]
+        # Whatever answered must actually be llama-server. Something else on
+        # the same port (seen: an Adminer container on 8080 returning its
+        # HTML login page with a 200) must read as "AI offline" (503), not
+        # crash /chat with a 500.
+        try:
+            data = resp.json()
+            usage = data.get("usage") or {}
+            raw_text = data["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise LLMUnavailable(
+                f"{self.base_url} answered, but not like llama-server "
+                f"(content-type {resp.headers.get('content-type')!r}) — is another app on that port?"
+            ) from exc
         text = _trim_runaway_output(raw_text, self.stop, model_name=self.model_name).strip()
 
         return LLMResult(
@@ -121,6 +131,10 @@ class LocalLlamaProvider(LLMProvider):
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(f"{self.base_url}/health")
-                return resp.status_code == 200
-        except httpx.HTTPError:
+                if resp.status_code != 200:
+                    return False
+                # llama-server answers {"status": "ok"}; any other app that
+                # happens to return 200 on /health is not the model.
+                return resp.json().get("status") == "ok"
+        except (httpx.HTTPError, ValueError, AttributeError):
             return False

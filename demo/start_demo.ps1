@@ -13,7 +13,10 @@
 param(
   [switch]$NoAI,
   [string]$LlamaExe  = "D:\tools\llama\llama-server.exe",
-  [string]$ModelPath = "D:\models\nyaymitra-demo.gguf"
+  [string]$ModelPath = "D:\models\nyaymitra-demo.gguf",
+  # Not 8080: another project's Adminer container uses 8080 on this laptop.
+  # Must match LLM_BASE_URL in backend\.env.
+  [int]$LlamaPort    = 8081
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +60,16 @@ function Invoke-Native([scriptblock]$block) {
 
 function Test-Docker { return ((Invoke-Native { docker info > $null 2>&1 }) -eq 0) }
 
+# True only if llama-server itself answers on the port ({"status":"ok"}),
+# not merely "something is listening" - a different app on the same port
+# once made the backend think the AI was up when it wasn't.
+function Test-Llama($port) {
+  try {
+    $r = Invoke-RestMethod -Uri "http://127.0.0.1:$port/health" -TimeoutSec 3
+    return ($r.status -eq "ok")
+  } catch { return $false }
+}
+
 function Save-Pid($name, $proc) { if ($proc) { Set-Content -Path (Join-Path $State "$name.pid") -Value $proc.Id } }
 
 # ---------------------------------------------------------------- 1. Docker
@@ -83,16 +96,21 @@ Wait-Port 5433 60 "Postgres" | Out-Null
 
 # --------------------------------------------------------------- 2. AI model
 if (-not $NoAI) {
-  if (Test-Port 8080) {
-    Say "llama-server already running on 8080."
+  if (Test-Llama $LlamaPort) {
+    Say "llama-server already running on $LlamaPort."
+  } elseif (Test-Port $LlamaPort) {
+    Fail "Port $LlamaPort is used by another program, not llama-server. Stop it, or pass -LlamaPort <free port> and set LLM_BASE_URL in backend\.env to match."
   } else {
     if (-not (Test-Path $LlamaExe))  { Fail "llama-server not found at $LlamaExe (use -LlamaExe, or -NoAI)." }
     if (-not (Test-Path $ModelPath)) { Fail "Model not found at $ModelPath (use -ModelPath, or -NoAI)." }
     Say "Starting llama-server (AI model, loads ~4 GB)..."
     $p = Start-Process -FilePath $LlamaExe -PassThru -WindowStyle Minimized -ArgumentList @(
-      "-m", "`"$ModelPath`"", "--host", "127.0.0.1", "--port", "8080", "-c", "4096")
+      "-m", "`"$ModelPath`"", "--host", "127.0.0.1", "--port", "$LlamaPort", "-c", "4096")
     Save-Pid "llama" $p
-    Wait-Port 8080 180 "llama-server" | Out-Null
+    Wait-Port $LlamaPort 180 "llama-server" | Out-Null
+    # Port opens before the model finishes loading; wait for real readiness.
+    for ($i = 0; $i -lt 120 -and -not (Test-Llama $LlamaPort); $i++) { Start-Sleep -Seconds 2 }
+    if (-not (Test-Llama $LlamaPort)) { Fail "llama-server started but never reported ready. Check its window." }
   }
 }
 

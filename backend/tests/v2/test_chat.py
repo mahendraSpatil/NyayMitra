@@ -160,6 +160,7 @@ def test_chat_includes_real_case_details_and_document_context(
 
         prompt = fake_llm.calls[0][-1]["content"]
         assert "Test Chat Person" in prompt  # real Case column, not a fabricated field
+        assert str(document_id) not in prompt  # no database IDs for the model to parrot
         assert "arrested under Section 302 IPC" in prompt  # real document excerpt
     finally:
         db.query(Document).filter(Document.id == document_id).delete()
@@ -256,3 +257,41 @@ def test_health_reports_llm_status(client, fake_llm):
     assert body["status"] == "ok"
     assert body["llm"] is True
     assert body["llmProvider"] == "fake"
+
+
+def test_greeting_gets_an_instant_reply_without_calling_the_model(client, auth_headers, fake_llm):
+    for greeting in ("hi", "Hello!", "namaste", "good morning", "नमस्ते"):
+        r = client.post("/api/v2/chat", json={"message": greeting}, headers=auth_headers("advocate"))
+        assert r.status_code == 200, r.text
+        assert r.json()["modelUsed"] == "greeting"
+        assert r.json()["verificationStatus"] == "unverified"
+    assert fake_llm.calls == []
+    r = client.post("/api/v2/chat", json={"message": "hi, when is my hearing?"}, headers=auth_headers("advocate"))
+    assert r.json()["modelUsed"] != "greeting"
+
+
+def test_junk_scan_uploaded_under_an_old_gate_is_excluded_at_chat_time(
+    client, auth_headers, make_case, accounts, fake_llm, db, monkeypatch
+):
+    """Live case: a junk scan stored as ocr_extracted (82%, a few word
+    fragments) was fed to the model. Raising the bar must exclude it
+    without re-uploading."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ocr_min_words", 10)
+    case_id = _advocate_owned_case(make_case, accounts, db)
+    junk = _add_doc(
+        db, case_id, accounts["advocate"]["uid"],
+        text="PMN II TT व\n\neer aw ऊन\n\nले =",
+        ocr_status="ocr_extracted", text_source="ocr", confidence=82.0,
+    )
+    try:
+        r = client.post("/api/v2/chat", json={"message": "What does my FIR say?", "caseId": str(case_id)},
+                        headers=auth_headers("advocate"))
+        assert r.status_code == 200, r.text
+        assert r.json()["citedDocuments"] == []
+        assert [d["docId"] for d in r.json()["skippedDocuments"]] == [str(junk.id)]
+        assert "PMN" not in fake_llm.calls[-1][-1]["content"]
+    finally:
+        db.query(Document).filter(Document.case_id == case_id).delete()
+        db.commit()

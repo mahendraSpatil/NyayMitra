@@ -22,6 +22,7 @@ ocr_low_confidence.
 """
 
 import logging
+import unicodedata
 from dataclasses import dataclass, field
 from io import BytesIO
 
@@ -44,6 +45,32 @@ SOURCE_NONE = "none"
 
 # Statuses whose text may be handed to the chat model as document context.
 CHAT_USABLE_STATUSES = (STATUS_EXTRACTED, STATUS_OCR_EXTRACTED)
+
+
+def _is_letterish(ch: str) -> bool:
+    # Letters plus combining marks: Devanagari vowel signs and viramas
+    # (categories Mn/Mc) are part of a word, not separators — without
+    # this, "करण्यात" would count as fragments and real Marathi/Hindi
+    # scans would fail the gate.
+    return ch.isalpha() or unicodedata.category(ch) in ("Mn", "Mc")
+
+
+def real_word_count(text: str | None) -> int:
+    """Whitespace-separated tokens with 3+ letters (any script) — a cheap
+    check that OCR output is text at all, not scanner noise."""
+    return sum(1 for token in (text or "").split() if sum(map(_is_letterish, token)) >= 3)
+
+
+def ocr_text_usable(text: str | None, confidence: float | None) -> bool:
+    """The single gate for "may the chat model see this OCR text?" — used
+    at upload and again at chat time, so raising the bar also excludes
+    documents uploaded under an older, looser one."""
+    return (
+        bool(text)
+        and confidence is not None
+        and confidence >= settings.ocr_min_confidence
+        and real_word_count(text) >= settings.ocr_min_words
+    )
 
 
 @dataclass(frozen=True)
@@ -102,7 +129,7 @@ def extract_document(data: bytes) -> ExtractionResult:
         )
     status = (
         STATUS_OCR_EXTRACTED
-        if ocr_text and confidence >= settings.ocr_min_confidence
+        if ocr_text_usable(ocr_text, confidence)
         else STATUS_OCR_LOW_CONFIDENCE
     )
     return ExtractionResult(

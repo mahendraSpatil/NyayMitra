@@ -76,7 +76,14 @@ class Settings:
     ocr_languages = os.environ.get("OCR_LANGUAGES", "eng+hin+mar")
     # Mean per-word confidence (0-100) below which a scan is stored but
     # kept OUT of /chat's context — see case_document_context.py.
-    ocr_min_confidence = float(os.environ.get("OCR_MIN_CONFIDENCE", "60"))
+    # 70, not 60: on real Tesseract 5 + eng/hin/mar, a junk photocopy
+    # scored 66 while readable scans scored 88-96.
+    ocr_min_confidence = float(os.environ.get("OCR_MIN_CONFIDENCE", "70"))
+    # A scan must also contain at least this many real words (3+ letters,
+    # any script). Noise and photos of non-documents come back as a handful
+    # of fragments ("PMN II TT", "eer aw") that can still average a passing
+    # confidence; no real legal document is that short.
+    ocr_min_words = int(os.environ.get("OCR_MIN_WORDS", "10"))
     ocr_max_pages = int(os.environ.get("OCR_MAX_PAGES", "20"))
     ocr_dpi = int(os.environ.get("OCR_DPI", "300"))
     # Per-page and whole-document ceilings, so one degraded scan can't

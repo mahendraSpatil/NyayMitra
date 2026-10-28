@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ...db.models import Document
 from .document_fields import fields_by_document, model_view_of
-from ..pdf_extraction import STATUS_OCR_LOW_CONFIDENCE
+from ..pdf_extraction import STATUS_OCR_LOW_CONFIDENCE, ocr_text_usable
 
 # Character count, not tokens — crude, but this is a placeholder until
 # generation_service exists and real model context limits matter.
@@ -62,7 +62,7 @@ def fetch_case_document_context(db: Session, case_id: uuid.UUID) -> tuple[list[D
         text = doc.raw_text
         if not text:
             continue  # no_text_layer / failed / not yet processed — nothing to add
-        if doc.ocr_status == STATUS_OCR_LOW_CONFIDENCE:
+        if _excluded_scan(doc):
             # Stored (a human can still read it) but deliberately NOT
             # given to the model: OCR errors in a section number or a
             # custody date pass every automated check we have, so a scan
@@ -115,13 +115,21 @@ def fetch_case_document_context(db: Session, case_id: uuid.UUID) -> tuple[list[D
     return included, truncated
 
 
+def _excluded_scan(doc: Document) -> bool:
+    """Low-confidence at upload, OR an OCR document that no longer passes
+    today's gate (thresholds can be raised after upload)."""
+    if doc.ocr_status == STATUS_OCR_LOW_CONFIDENCE:
+        return True
+    return doc.text_source == "ocr" and not ocr_text_usable(doc.raw_text, doc.ocr_confidence)
+
+
 def fetch_excluded_documents(db: Session, case_id: uuid.UUID) -> list[ExcludedDocument]:
     """Documents with text that /chat deliberately did not use, so the
     answer can say "I couldn't use your scanned FIR" instead of silently
     answering without it."""
     documents = db.scalars(
         select(Document)
-        .where(Document.case_id == case_id, Document.ocr_status == STATUS_OCR_LOW_CONFIDENCE)
+        .where(Document.case_id == case_id, Document.raw_text.is_not(None))
         .order_by(Document.uploaded_at.asc())
     )
     return [
@@ -132,4 +140,5 @@ def fetch_excluded_documents(db: Session, case_id: uuid.UUID) -> list[ExcludedDo
             ocr_confidence=d.ocr_confidence,
         )
         for d in documents
+        if _excluded_scan(d)
     ]

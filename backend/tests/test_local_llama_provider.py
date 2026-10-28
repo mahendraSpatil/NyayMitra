@@ -196,3 +196,54 @@ def test_generate_trims_runaway_output_from_a_real_shaped_response(monkeypatch, 
     # This response was deliberately shaped to need the trim, so the
     # warning must fire — the inverse of the "clean output" test above.
     assert "nyaymitra-demo" in caplog.text
+
+
+# ---------------------------------------------------------------------
+# Something other than llama-server on the model's port — found live:
+# an Adminer container on 8080 answered /v1/chat/completions and /health
+# with its HTML login page (200), so /health said "AI online" and /chat
+# crashed with a 500. Both must read as "AI offline" instead.
+# ---------------------------------------------------------------------
+
+
+class _HtmlClient:
+    """Answers every request with a 200 HTML page, like Adminer did."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    def _page(self, method, url):
+        return httpx.Response(
+            200,
+            text="<html><title>Login - Adminer</title></html>",
+            headers={"content-type": "text/html"},
+            request=httpx.Request(method, url),
+        )
+
+    async def post(self, url, json):
+        return self._page("POST", url)
+
+    async def get(self, url):
+        return self._page("GET", url)
+
+
+def test_non_llama_answer_on_the_port_is_llm_unavailable_not_a_crash(monkeypatch):
+    from app.llm.base import LLMUnavailable
+
+    monkeypatch.setattr("app.llm.local_llama.httpx.AsyncClient", lambda **kwargs: _HtmlClient())
+    provider = LocalLlamaProvider(base_url="http://127.0.0.1:8080", model_name="m", timeout_s=5.0)
+    try:
+        _run(provider.generate([{"role": "user", "content": "hi"}]))
+    except LLMUnavailable as exc:
+        assert "not like llama-server" in str(exc)
+    else:
+        raise AssertionError("expected LLMUnavailable")
+
+
+def test_health_is_false_when_another_app_answers_200(monkeypatch):
+    monkeypatch.setattr("app.llm.local_llama.httpx.AsyncClient", lambda **kwargs: _HtmlClient())
+    provider = LocalLlamaProvider(base_url="http://127.0.0.1:8080", model_name="m", timeout_s=5.0)
+    assert _run(provider.health()) is False

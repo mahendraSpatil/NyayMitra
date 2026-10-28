@@ -40,6 +40,18 @@ def _reset_register_rate_limit():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _short_ocr_samples_ok(monkeypatch):
+    """Test documents here are one-line samples; the OCR real-word
+    minimum and the 70 threshold have their own tests (test_chat.py,
+    tests/test_ocr.py). Patches the live settings object, which the
+    in-process TestClient app shares."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ocr_min_words", 0)
+    monkeypatch.setattr(settings, "ocr_min_confidence", 60.0)
+
+
 @pytest.fixture(scope="session")
 def db():
     with SessionLocal() as session:

@@ -33,6 +33,14 @@ HAVE_BINARIES = _have_binaries()
 needs_engine = pytest.mark.skipif(not HAVE_BINARIES, reason="tesseract/poppler not installed")
 
 
+@pytest.fixture(autouse=True)
+def _short_samples_ok(monkeypatch):
+    """The sample texts in this file are deliberately one-liners; the
+    real-word minimum has its own tests below."""
+    monkeypatch.setattr(settings, "ocr_min_words", 0)
+    monkeypatch.setattr(settings, "ocr_min_confidence", 60.0)
+
+
 # ---- pure: reconstructing text + confidence from image_to_data ----------
 
 def _data(rows):
@@ -115,6 +123,23 @@ def test_scan_below_threshold_is_low_confidence_but_text_is_kept_for_humans(monk
     r = extract_document(_blank_pdf())
     assert r.status == "ocr_low_confidence"
     assert r.text == "Sectlon 4З7"
+
+
+def test_scan_with_too_few_real_words_is_low_confidence(monkeypatch):
+    """Live case: a junk scan read as 'PMN II TT व eer aw ऊन ले =' still
+    averaged a passing confidence. Too few real words = not usable."""
+    monkeypatch.setattr(settings, "ocr_min_words", 10)
+    _with_provider(monkeypatch, _Fake(OCRResult("PMN II TT व eer aw ऊन ले =", 82.0, 1, False, 9)))
+    assert extract_document(_blank_pdf()).status == "ocr_low_confidence"
+
+
+def test_real_word_count_counts_any_script_but_not_fragments():
+    from app.services.pdf_extraction import real_word_count
+
+    assert real_word_count("PMN II TT व eer aw ऊन ले =") == 2  # PMN, eer
+    # Devanagari vowel signs belong to the word: all six count.
+    assert real_word_count("आरोपीस अटक करण्यात आली accused arrested") == 6
+    assert real_word_count("379/2026 14.03.2026 ---") == 0
 
 
 def test_threshold_is_inclusive_and_configurable(monkeypatch):

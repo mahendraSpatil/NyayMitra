@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,6 +19,19 @@ from ...services.v2.document_fields import case_facts
 from ...services.v2.verification import verify_draft
 
 router = APIRouter()
+
+# A bare greeting gets an instant, fixed reply instead of a ~40 s model
+# call that (seen live) answers "hi" by dumping the case documents back.
+_GREETING = re.compile(
+    r"^\s*(hi+|hello+|helo|hey+|hii+|yo|namaste|namaskar|namaskaar|"
+    r"good\s+(morning|afternoon|evening)|नमस्ते|नमस्कार)[\s!.?,]*$",
+    re.IGNORECASE,
+)
+GREETING_REPLY = (
+    "Namaste! I can explain your case documents in simple words — for "
+    "example what the FIR says, which sections apply, or when the next "
+    "hearing is. What would you like to know?"
+)
 
 # caseId is optional on this endpoint (the chatbot FAB is portal-home-level
 # for Advocate/NGO, with no single case in scope there) — the membership
@@ -44,6 +58,9 @@ async def chat(
     db: Session = Depends(get_db),
     llm: LLMProvider = Depends(get_llm),
 ) -> ChatResponse:
+    if _GREETING.match(payload.message):
+        # Not a model answer, so nothing to verify — and never "verified".
+        return ChatResponse(text=GREETING_REPLY, verificationStatus="unverified", modelUsed="greeting", latencyMs=0)
     case_details: dict = {}
     cited_documents: list[CitedDocument] = []
     skipped_documents: list[SkippedDocument] = []
