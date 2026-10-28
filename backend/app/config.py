@@ -63,7 +63,12 @@ class Settings:
     # not the same as an empty list silently keeping the default; a
     # deliberate override to test whether llama-server's own defaults
     # handle it.
-    _llm_stop_raw = os.environ.get("LLM_STOP", "<|im_end|>,<|im_start|>,QUESTION:")
+    # Also the prompt's own section headers: the model was seen appending
+    # "DOCUMENT EXCERPT: ... RELEVANT LAW: ..." after a correct answer.
+    _llm_stop_raw = os.environ.get(
+        "LLM_STOP",
+        "<|im_end|>,<|im_start|>,QUESTION:,DOCUMENT EXCERPT:,RELEVANT LAW:,CASE DETAILS:",
+    )
     llm_stop = (
         [part.strip() for part in _llm_stop_raw.split(",") if part.strip()] if _llm_stop_raw else []
     )
