@@ -14,6 +14,8 @@ overflow is shared by every route in the app) for as long as a chat
 reply is in flight.
 """
 
+from dataclasses import replace
+
 from ...config import settings
 from ...llm.base import LLMProvider, LLMResult
 from ...llm.prompts import build_messages, select_excerpt
@@ -40,8 +42,22 @@ async def generate_draft(
     # real to put there yet, and a fabricated one would risk looking
     # like law-grounded context that was never actually checked.
     messages = build_messages(case_details, excerpt, "", question)
-    return await llm.generate(
+    result = await llm.generate(
         messages,
         max_tokens=settings.llm_max_tokens,
         temperature=settings.llm_temperature,
     )
+    return replace(result, text=strip_echoed_question(result.text, question))
+
+
+def strip_echoed_question(text: str, question: str) -> str:
+    """The fine-tuned model often starts its answer by repeating the
+    question (and sometimes "Answer:"). Drop that so the family sees only
+    the answer. Leaves the text alone if what remains would be empty."""
+    q = question.strip()
+    out = text.lstrip()
+    if q and out.lower().startswith(q.lower()):
+        out = out[len(q):].lstrip(" \t\r\n:-")
+    if out.lower().startswith("answer:"):
+        out = out[len("answer:"):].lstrip()
+    return out or text

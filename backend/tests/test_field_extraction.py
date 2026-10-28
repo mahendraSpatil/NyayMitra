@@ -409,3 +409,22 @@ def test_bad_role_from_the_model_is_ignored():
     f = ground_suggestion(SUGGEST_TEXT, kind="date", role="birthday", quote="14 March 2026",
                           taken=[], text_source="text_layer", reference_date=TODAY)
     assert f.role is None
+
+
+@pytest.mark.parametrize(
+    "text,value",
+    [
+        ("भारतीय दंड संहिता कलम ३७९ अन्वये गुन्हा दाखल", "379 IPC"),
+        ("Charged under IPC Section 302.", "302 IPC"),
+        ("BNSS, कलम 479", "479 BNSS"),
+    ],
+)
+def test_act_written_before_the_section_keyword(text, value):
+    (f,) = [f for f in _typed(text) if f.kind == "section"]
+    assert f.value == value and not f.issues
+
+
+def test_act_from_an_earlier_clause_is_not_borrowed():
+    fields = _typed("The IPC was amended in 2005. Separately, the officer cited Section 41 for arrest.")
+    (f,) = [f for f in fields if f.kind == "section"]
+    assert f.value == "41"

@@ -360,6 +360,20 @@ def _infer_date_role(text: str, start: int, end: int) -> tuple[str | None, str |
     return None, None
 
 
+_ACT_BEFORE = re.compile(rf"({_ACT_ALT})[\s,.:-]*$", re.IGNORECASE)
+
+
+def _act_just_before(norm: str, keyword_start: int) -> str | None:
+    """The Act written immediately BEFORE the section keyword, on the same
+    line — Marathi/Hindi order ("भारतीय दंड संहिता कलम ३७९") and the
+    English "IPC Section 302". Only directly adjacent, so an Act named
+    earlier in the sentence for something else isn't borrowed."""
+    line_start = norm.rfind("\n", 0, keyword_start) + 1
+    before = norm[max(line_start, keyword_start - 40):keyword_start]
+    m = _ACT_BEFORE.search(before)
+    return m.group(1) if m else None
+
+
 def _check_date(f: FieldCandidate, year_raw: str, reference_date: date) -> None:
     if f.value is None:
         f.add_issue("invalid_date", f"'{f.raw_text}' is not a real calendar date.", blocking=True)
@@ -492,7 +506,8 @@ def extract_fields(
 
     # 3. General patterns.
     for m in _SECTIONS.finditer(norm):
-        add_sections(m.start(1), m.group(1), m.group(2), EXTRACTOR_PATTERN)
+        act_raw = m.group(2) or _act_just_before(norm, m.start())
+        add_sections(m.start(1), m.group(1), act_raw, EXTRACTOR_PATTERN)
 
     date_spans: list[tuple[int, int]] = []
     for rx in (_NUMERIC_DATE, _DAY_MONTH_YEAR, _MONTH_DAY_YEAR):
