@@ -1,0 +1,96 @@
+# Builds the Android release APK in GitHub's cloud and publishes it as a
+# GitHub Release, so it can be downloaded straight onto a phone:
+#   Repo -> Releases -> latest "NyayMitra build N" -> NyayMitra.apk
+#
+# Runs on every push to main that touches the app, or manually:
+#   Repo -> Actions -> "Android APK" -> Run workflow
+#
+# Optional: set a repository variable API_BASE_URL (Settings -> Secrets and
+# variables -> Actions -> Variables) to bake in a default server, e.g. the
+# cloud VM's https address. Without it, set the server in the app.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "client/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to create the Release
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      # gradle.properties asks for an 8 GB heap (fine on a laptop); hosted
+      # runners for private repos have ~7 GB RAM in total.
+      - name: Fit Gradle memory to the runner
+        run: sed -i 's/-Xmx8G/-Xmx4G/; s/-XX:MaxMetaspaceSize=4G/-XX:MaxMetaspaceSize=1G/' android/gradle.properties
+
+      - run: flutter pub get
+
+      # Reported, not blocking: real compile errors fail the build below anyway.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release APK
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if [ -n "$API_BASE_URL" ]; then
+            flutter build apk --release --dart-define=API_BASE_URL="$API_BASE_URL"
+          else
+            flutter build apk --release
+          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/NyayMitra.apk"
+          ls -lh "$GITHUB_WORKSPACE/NyayMitra.apk"
+
+      - name: Keep the APK as a build artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: NyayMitra-apk-${{ github.run_number }}
+          path: NyayMitra.apk
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-build-${{ github.run_number }}
+          name: NyayMitra build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: NyayMitra.apk
+          body: |
+            Android APK built from ${{ github.sha }}.
+
+            **Install:** open this page on the phone, tap `NyayMitra.apk`,
+            then allow "install unknown apps" when Android asks.
+
+            **First launch:** sign-in screen -> server icon (top right) ->
+            paste the server address -> Save.
