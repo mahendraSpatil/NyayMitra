@@ -58,6 +58,13 @@ class ChatService {
       // (backend/app/routers/v2/chat.py).
       throw ChatUnavailableException();
     }
+    if (response.statusCode == 524 || response.statusCode == 504) {
+      // The tunnel / proxy gave up waiting (Cloudflare stops at ~100 s)
+      // while the model was still writing — not a crash.
+      throw ChatHttpException(
+        'The AI took too long to answer this time. Try a shorter question.',
+      );
+    }
     if (response.statusCode != 200) {
       throw ChatHttpException(
         'Chat request failed (${response.statusCode}): ${response.body}',

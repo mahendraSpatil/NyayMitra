@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/api_config.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/auth_service.dart';
 
@@ -54,6 +55,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.of(context).pop();
     } on AuthServiceException catch (e) {
       setState(() => _errorMessage = e.message);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              "Can't reach the server at ${ServerConfig.current}. "
+              'Check your internet or the server address on the sign-in screen.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

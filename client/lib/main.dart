@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/config/api_config.dart';
 import 'core/root_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/family/family_strings.dart';
@@ -15,6 +16,9 @@ Future<void> main() async {
   for (final locale in supportedFamilyLocales) {
     await initializeDateFormatting(locale);
   }
+  // Which backend to talk to — a server address saved in the app wins
+  // over the build-time default (api_config.dart).
+  await ServerConfig.load();
   runApp(const NyayMitraApp());
 }
 

@@ -1,0 +1,76 @@
+# Whole NyayMitra stack on one Linux VM (e.g. Azure for Students,
+# Standard_B2as_v2: 2 vCPU / 8 GB). See deploy/README.md.
+#
+#   cd deploy && cp .env.prod.example .env.prod   # fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Only Caddy is reachable from outside (80/443). Postgres, the backend and
+# the model are on the internal network only.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nyaymitra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: nyaymitra
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nyaymitra -d nyaymitra"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  llama:
+    # Official llama.cpp server image (CPU build).
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - ./models:/models:ro
+    command: >
+      -m /models/${MODEL_FILE:-nyaymitra-demo.gguf}
+      --host 0.0.0.0 --port 8080
+      -c 4096 -t ${LLAMA_THREADS:-2}
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://nyaymitra:${POSTGRES_PASSWORD}@postgres:5432/nyaymitra
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.prod}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:?}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?}
+      # The APK doesn't use CORS; this only matters if you also host the web app.
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+      LLM_PROVIDER: local
+      LLM_BASE_URL: http://llama:8080
+      LLM_MODEL_NAME: nyaymitra-demo
+      # 2 cloud vCPUs are slower than a laptop: allow more time, write less.
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-240}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-300}
+      OCR_LANGUAGES: eng+hin+mar
+      OCR_MIN_CONFIDENCE: ${OCR_MIN_CONFIDENCE:-60}
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [backend]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env.prod}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

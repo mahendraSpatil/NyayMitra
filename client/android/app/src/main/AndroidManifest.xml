@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need this explicitly — only the debug manifest had
+         it, so a release APK could not make ANY network call. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="client"
+        android:label="NyayMitra AI"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

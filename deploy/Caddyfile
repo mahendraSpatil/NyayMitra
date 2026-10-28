@@ -1,0 +1,12 @@
+# Automatic HTTPS (Let's Encrypt) for $DOMAIN, proxying to the backend.
+# WebSockets (/api/v2/ws/...) pass through reverse_proxy unchanged.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy backend:8000 {
+		# Chat on 2 vCPUs can take a few minutes; don't cut it off.
+		transport http {
+			read_timeout 300s
+			write_timeout 300s
+		}
+	}
+}

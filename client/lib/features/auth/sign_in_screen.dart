@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/api_config.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/widgets/server_settings_dialog.dart';
 import 'register_screen.dart';
 
 class SignInScreen extends StatefulWidget {
@@ -45,6 +47,18 @@ class _SignInScreenState extends State<SignInScreen> {
       // "Invalid email or password") — no need to guess a nicer string
       // client-side when the server already returns a display-ready one.
       setState(() => _errorMessage = e.message);
+    } catch (_) {
+      // Network failure (server down, wrong address, no internet) — the
+      // http client throws, not AuthServiceException. Say what to check
+      // instead of failing silently.
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              "Can't reach the server at ${ServerConfig.current}. "
+              'Check your internet, or set the server address '
+              '(icon at the top right).',
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -53,6 +67,20 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Server',
+            icon: const Icon(Icons.dns_outlined),
+            onPressed: () async {
+              await showServerSettingsDialog(context);
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -115,6 +143,12 @@ class _SignInScreenState extends State<SignInScreen> {
                       MaterialPageRoute(builder: (_) => const RegisterScreen()),
                     ),
                     child: const Text("Don't have an account? Register"),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Server: ${Uri.tryParse(ServerConfig.current)?.host ?? ServerConfig.current}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
