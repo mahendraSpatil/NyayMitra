@@ -93,6 +93,9 @@ class WsChannel {
         cancelOnError: true,
       );
     } catch (_) {
+      // Can't connect: the server may have moved to a new address.
+      // Look it up (throttled); the reconnect then uses it.
+      unawaited(ServerConfig.refresh());
       _scheduleReconnect();
     }
   }

@@ -6,9 +6,9 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../theme/app_theme.dart';
 
-/// Lets the person point the app at a different backend without a new
-/// APK — e.g. today's tunnel address for a demo, or the cloud server.
-/// Checks /health before saving so a typo can't strand the app.
+/// Server settings. Normally there is nothing to do here: the app finds
+/// the server's current address by itself. Typing one in is an override
+/// for testing against a different server.
 Future<void> showServerSettingsDialog(BuildContext context) {
   return showDialog<void>(
     context: context,
@@ -25,7 +25,7 @@ class _ServerSettingsDialog extends StatefulWidget {
 
 class _ServerSettingsDialogState extends State<_ServerSettingsDialog> {
   late final TextEditingController _controller;
-  bool _checking = false;
+  bool _busy = false;
   String? _message;
   bool _ok = false;
 
@@ -43,7 +43,7 @@ class _ServerSettingsDialogState extends State<_ServerSettingsDialog> {
 
   Future<bool> _check(String root) async {
     setState(() {
-      _checking = true;
+      _busy = true;
       _message = null;
     });
     try {
@@ -65,40 +65,39 @@ class _ServerSettingsDialogState extends State<_ServerSettingsDialog> {
         _message = 'No answer in 20 seconds. Is the server running?';
       });
       return false;
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _ok = false;
-        _message = 'Could not reach it: $e';
+        _message = "Can't reach the server. It may be switched off right now.";
       });
       return false;
     } finally {
-      if (mounted) setState(() => _checking = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _save() async {
+  Future<void> _useAutomatic() async {
+    setState(() => _busy = true);
+    await ServerConfig.useAutomatic();
+    if (!mounted) return;
+    _controller.text = ServerConfig.current;
+    await _check(ServerConfig.current);
+  }
+
+  Future<void> _saveManual() async {
     final root = ServerConfig.normalize(_controller.text);
     if (root.isEmpty) return;
     if (!await _check(root)) return;
-    await ServerConfig.save(root);
+    await ServerConfig.saveManual(root);
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
     messenger.showSnackBar(SnackBar(content: Text('Server set to $root')));
   }
 
-  Future<void> _reset() async {
-    await ServerConfig.reset();
-    if (!mounted) return;
-    setState(() {
-      _controller.text = ServerConfig.current;
-      _message = 'Reset to the built-in default.';
-      _ok = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final manual = ServerConfig.isManual;
     return AlertDialog(
       title: const Text('Server'),
       content: SingleChildScrollView(
@@ -106,9 +105,12 @@ class _ServerSettingsDialogState extends State<_ServerSettingsDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Paste the server address you were given, for example '
-              'https://something.trycloudflare.com',
+            Text(
+              manual
+                  ? 'Using an address typed in by hand. Tap "Automatic" to '
+                      'let the app find the server by itself again.'
+                  : 'Automatic: the app finds the server by itself. You '
+                      "don't need to change anything here.",
               style: AppTextStyles.cardSubtitle,
             ),
             const SizedBox(height: 12),
@@ -134,26 +136,25 @@ class _ServerSettingsDialogState extends State<_ServerSettingsDialog> {
         ),
       ),
       actions: [
-        if (ServerConfig.isCustom)
-          TextButton(
-            onPressed: _checking ? null : _reset,
-            child: const Text('Reset'),
-          ),
         TextButton(
-          onPressed: _checking
+          onPressed: _busy ? null : _useAutomatic,
+          child: const Text('Automatic'),
+        ),
+        TextButton(
+          onPressed: _busy
               ? null
               : () => _check(ServerConfig.normalize(_controller.text)),
           child: const Text('Test'),
         ),
         FilledButton(
-          onPressed: _checking ? null : _save,
-          child: _checking
+          onPressed: _busy ? null : _saveManual,
+          child: _busy
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Save'),
+              : const Text('Use this'),
         ),
       ],
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/config/api_config.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/auth_service.dart';
 
@@ -59,8 +58,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) {
         setState(
           () => _errorMessage =
-              "Can't reach the server at ${ServerConfig.current}. "
-              'Check your internet or the server address on the sign-in screen.',
+              "Can't reach the server right now. It may be switched off "
+              'or restarting — try again in a minute.',
         );
       }
     } finally {

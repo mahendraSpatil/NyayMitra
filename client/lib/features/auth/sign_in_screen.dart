@@ -54,9 +54,8 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) {
         setState(
           () => _errorMessage =
-              "Can't reach the server at ${ServerConfig.current}. "
-              'Check your internet, or set the server address '
-              '(icon at the top right).',
+              "Can't reach the server right now. It may be switched off "
+              'or restarting — try again in a minute.',
         );
       }
     } finally {
@@ -146,7 +145,8 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Server: ${Uri.tryParse(ServerConfig.current)?.host ?? ServerConfig.current}',
+                    'Server: ${Uri.tryParse(ServerConfig.current)?.host ?? ServerConfig.current}'
+                    '${ServerConfig.isManual ? ' (set by hand)' : ' (automatic)'}',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),

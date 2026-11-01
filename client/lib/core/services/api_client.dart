@@ -81,7 +81,9 @@ class ApiClient {
     Object? body,
   }) async {
     var accessToken = await _tokenStorage.accessToken;
-    var response = await _rawSend(method, path, accessToken, body);
+    var response = await sendWithFailover(
+      () => _rawSend(method, path, accessToken, body),
+    );
 
     // At most one retry, ever — this branch runs once per call to
     // _send() (there is no loop, no recursion here), and only for paths
@@ -95,7 +97,9 @@ class ApiClient {
       } on ApiUnauthorizedException {
         rethrow;
       }
-      response = await _rawSend(method, path, accessToken, body);
+      response = await sendWithFailover(
+        () => _rawSend(method, path, accessToken, body),
+      );
     }
     return response;
   }
@@ -151,10 +155,12 @@ class ApiClient {
       throw const ApiUnauthorizedException();
     }
 
-    final response = await _http.post(
-      Uri.parse('$apiBaseUrl/auth/refresh'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode({'refreshToken': refreshToken}),
+    final response = await sendWithFailover(
+      () => _http.post(
+        Uri.parse('$apiBaseUrl/auth/refresh'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      ),
     );
 
     if (response.statusCode != 200) {

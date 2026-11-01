@@ -27,18 +27,23 @@ demo, e.g. from `D:\nyaymitra\ocr_test_docs\`:
 powershell -ExecutionPolicy Bypass -File D:\EDI_5\demo\start_demo.ps1
 ```
 
-It starts Docker/Postgres, the AI model, the backend and the tunnel, then
-prints an address like `https://some-random-words.trycloudflare.com` and
-copies it to the clipboard. Send it to the phone (WhatsApp to yourself).
+It starts Docker/Postgres, the AI model, the backend and a Cloudflare
+tunnel, then **publishes the tunnel's address to the `demo-server` branch
+of the GitHub repo**. The app reads it from there at launch and whenever
+the server stops answering, so **nobody types an address**.
 
-In the app: **sign-in screen -> server icon (top right) -> paste ->
-Save.** It should say *Connected. AI is online.* The address changes each
-time you run the script, so do this once per demo.
+**Keep that window open.** It checks the public address every 30 s and,
+if the tunnel drops (Wi-Fi blip, laptop network change), opens a new one
+and publishes it; phones switch over by themselves on their next request.
+It also stops the laptop sleeping while it's open.
 
-Keep the laptop **plugged in, awake and online** for the whole demo
-(Settings -> Power -> Screen and sleep -> Never while plugged in).
+Needs: the repo public (the app reads the address without logging in),
+and `git push` working from this laptop. If publishing fails the script
+says so; the address is then on your clipboard and can be typed in the app
+(server icon -> paste -> Use this).
 
-When done: `powershell -ExecutionPolicy Bypass -File D:\EDI_5\demo\stop_demo.ps1`
+When done: close the window, then
+`powershell -ExecutionPolicy Bypass -File D:\EDI_5\demo\stop_demo.ps1`
 
 ## A 5-minute demo story
 
@@ -64,7 +69,8 @@ the AI as fact - a person confirms it first.*
 
 | Symptom | Fix |
 |---|---|
-| "Can't reach the server" on sign-in | Script still running? Server address pasted from **this** run? Laptop awake? |
+| "Can't reach the server" on sign-in | Is the start_demo window still open and the laptop online? Wait a minute and retry - the app looks the address up again by itself |
+| App shows "Server: ... (set by hand)" | Someone typed an address. Server icon -> **Automatic** |
 | Script: "Docker did not come up" | Open Docker Desktop, wait for *Engine running*, run the script again |
 | Script: llama-server not found | `-LlamaExe` / `-ModelPath` to your paths, or `-NoAI` to demo without chat |
 | Chat: "AI is offline" | llama-server window closed - re-run the script |

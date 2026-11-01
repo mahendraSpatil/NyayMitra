@@ -19,6 +19,13 @@ Future<void> main() async {
   // Which backend to talk to — a server address saved in the app wins
   // over the build-time default (api_config.dart).
   await ServerConfig.load();
+  // Pick up the server's current address before the first request
+  // (it changes whenever the demo laptop's tunnel restarts). Never holds
+  // the splash screen for more than a few seconds.
+  await ServerConfig.refresh().timeout(
+    const Duration(seconds: 6),
+    onTimeout: () => false,
+  );
   runApp(const NyayMitraApp());
 }
 

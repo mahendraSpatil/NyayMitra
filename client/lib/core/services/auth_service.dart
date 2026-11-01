@@ -100,10 +100,12 @@ class AuthService {
     // absent token happens to be in storage from a previous session)
     // and retry the same login call pointlessly before the real error
     // ever surfaces.
-    final response = await http.post(
-      Uri.parse('$apiBaseUrl/auth/login'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
+    final response = await sendWithFailover(
+      () => http.post(
+        Uri.parse('$apiBaseUrl/auth/login'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ),
     );
     if (response.statusCode != 200) {
       throw AuthServiceException(_readableError(response));
@@ -148,10 +150,12 @@ class AuthService {
       '${jsonEncode({...requestBody, 'password': '<redacted>'})}',
     );
 
-    final response = await http.post(
-      Uri.parse('$apiBaseUrl/auth/register'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
+    final response = await sendWithFailover(
+      () => http.post(
+        Uri.parse('$apiBaseUrl/auth/register'),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ),
     );
     if (response.statusCode != 201) {
       throw AuthServiceException(_readableError(response));
