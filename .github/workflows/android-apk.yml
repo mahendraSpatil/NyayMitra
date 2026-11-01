@@ -92,5 +92,5 @@ jobs:
             **Install:** open this page on the phone, tap `NyayMitra.apk`,
             then allow "install unknown apps" when Android asks.
 
-            **First launch:** sign-in screen -> server icon (top right) ->
-            paste the server address -> Save.
+            The app finds the server by itself - just sign in. (The demo
+            laptop must be running demo/start_demo.ps1.)

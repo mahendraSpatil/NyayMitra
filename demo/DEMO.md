@@ -39,8 +39,8 @@ It also stops the laptop sleeping while it's open.
 
 Needs: the repo public (the app reads the address without logging in),
 and `git push` working from this laptop. If publishing fails the script
-says so; the address is then on your clipboard and can be typed in the app
-(server icon -> paste -> Use this).
+says so - fix the push (sign in to GitHub on this laptop) and re-run, because
+the phone app has no place to type an address.
 
 When done: close the window, then
 `powershell -ExecutionPolicy Bypass -File D:\EDI_5\demo\stop_demo.ps1`
@@ -70,7 +70,6 @@ the AI as fact - a person confirms it first.*
 | Symptom | Fix |
 |---|---|
 | "Can't reach the server" on sign-in | Is the start_demo window still open and the laptop online? Wait a minute and retry - the app looks the address up again by itself |
-| App shows "Server: ... (set by hand)" | Someone typed an address. Server icon -> **Automatic** |
 | Script: "Docker did not come up" | Open Docker Desktop, wait for *Engine running*, run the script again |
 | Script: llama-server not found | `-LlamaExe` / `-ModelPath` to your paths, or `-NoAI` to demo without chat |
 | Chat: "AI is offline" | llama-server window closed - re-run the script |

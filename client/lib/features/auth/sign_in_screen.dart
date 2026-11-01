@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import '../../core/config/api_config.dart';
@@ -66,7 +67,12 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      // Server choice is automatic (api_config.dart). The manual override
+      // exists only in debug builds, for development — the release app
+      // never asks anyone for a server address.
+      appBar: !kDebugMode
+          ? null
+          : AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -143,13 +149,15 @@ class _SignInScreenState extends State<SignInScreen> {
                     ),
                     child: const Text("Don't have an account? Register"),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Server: ${Uri.tryParse(ServerConfig.current)?.host ?? ServerConfig.current}'
-                    '${ServerConfig.isManual ? ' (set by hand)' : ' (automatic)'}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Server: ${Uri.tryParse(ServerConfig.current)?.host ?? ServerConfig.current}'
+                      '${ServerConfig.isManual ? ' (set by hand)' : ' (automatic)'}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ],
               ),
             ),

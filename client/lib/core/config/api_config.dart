@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb, kReleaseMode;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -28,8 +28,9 @@ const _discoveryBranch = String.fromEnvironment(
 );
 
 /// Which backend the app talks to, in priority order:
-/// 1. an address typed in by hand (sign-in screen -> server icon) — an
-///    explicit override, so automatic discovery leaves it alone;
+/// 1. DEBUG BUILDS ONLY: an address typed in by hand (sign-in screen ->
+///    server icon, which release builds don't show) — an explicit
+///    override, so automatic discovery leaves it alone;
 /// 2. the address discovered automatically from [_discoveryRepo]
 ///    (refreshed at launch and whenever the server stops answering);
 /// 3. the build-time API_BASE_URL;
@@ -53,7 +54,14 @@ class ServerConfig {
   /// Call once in main() before runApp.
   static Future<void> load() async {
     try {
-      _manual = _nonEmpty(await _storage.read(key: _manualKey));
+      if (kReleaseMode) {
+        // The release app has no server settings screen, so an address
+        // typed into an older build could never be undone — drop it and
+        // stay automatic.
+        await _storage.delete(key: _manualKey);
+      } else {
+        _manual = _nonEmpty(await _storage.read(key: _manualKey));
+      }
       _discovered = _nonEmpty(await _storage.read(key: _discoveredKey));
       await _storage.delete(key: _legacyKey);
     } catch (_) {
