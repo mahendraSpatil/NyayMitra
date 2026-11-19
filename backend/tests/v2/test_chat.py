@@ -106,7 +106,8 @@ def test_chat_503_when_llm_unavailable_no_fallback(client, auth_headers):
     app.dependency_overrides[get_llm] = lambda: provider
     try:
         response = client.post(
-            "/api/v2/chat", json={"message": "hello"}, headers=auth_headers("advocate")
+            # Not a greeting: greetings get a fixed reply without the model.
+            "/api/v2/chat", json={"message": "When is my next hearing?"}, headers=auth_headers("advocate")
         )
         assert response.status_code == 503
         assert len(provider.calls) == 1  # tried exactly once, never retried onto a different provider

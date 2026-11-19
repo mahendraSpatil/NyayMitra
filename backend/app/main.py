@@ -71,7 +71,15 @@ async def health(llm: LLMProvider = Depends(get_llm)) -> dict:
     # in-process. Nothing else in this app currently depends on /health
     # being instant (no liveness probe wired up), so that tradeoff is
     # accepted rather than worked around with a second endpoint.
-    return {"status": "ok", "llm": await llm.health(), "llmProvider": llm.name}
+    return {
+        "status": "ok",
+        "llm": await llm.health(),
+        "llmProvider": llm.name,
+        # Which model/prompt layout this backend expects — lets the demo
+        # script and testers confirm the backend and llama-server agree.
+        "llmModel": settings.llm_model_name,
+        "llmPromptFormat": settings.llm_prompt_format,
+    }
 
 
 # Every route in the app now lives under /api/v2 and is authorized by

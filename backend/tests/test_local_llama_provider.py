@@ -247,3 +247,54 @@ def test_health_is_false_when_another_app_answers_200(monkeypatch):
     monkeypatch.setattr("app.llm.local_llama.httpx.AsyncClient", lambda **kwargs: _HtmlClient())
     provider = LocalLlamaProvider(base_url="http://127.0.0.1:8080", model_name="m", timeout_s=5.0)
     assert _run(provider.health()) is False
+
+
+# ---------------------------------------------------------------------
+# Alpaca / raw completion (nyaymitra-v2): the prompt must reach
+# llama-server's /completion untouched — no chat template.
+# ---------------------------------------------------------------------
+
+
+class _CompletionClient:
+    def __init__(self, response_json):
+        self._response_json = response_json
+        self.url = None
+        self.payload = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+    async def post(self, url, json):
+        self.url, self.payload = url, json
+        return httpx.Response(200, json=self._response_json, request=httpx.Request("POST", url))
+
+
+def test_complete_sends_the_raw_prompt_to_slash_completion(monkeypatch):
+    client = _CompletionClient({"content": " He was arrested on 14 March 2026.", "tokens_predicted": 9, "tokens_evaluated": 120})
+    monkeypatch.setattr("app.llm.local_llama.httpx.AsyncClient", lambda **kwargs: client)
+    provider = LocalLlamaProvider(base_url="http://127.0.0.1:8081", model_name="nyaymitra-v2", timeout_s=5.0)
+    prompt = "### Instruction:\nWhen?\n\n### Response:\n"
+    result = _run(provider.complete(prompt, max_tokens=50, temperature=0.1, stop=["</s>", "### Instruction"]))
+    assert client.url.endswith("/completion")
+    assert client.payload["prompt"] == prompt
+    assert client.payload["stop"] == ["</s>", "### Instruction"]
+    assert client.payload["n_predict"] == 50
+    assert "messages" not in client.payload
+    assert result.text == "He was arrested on 14 March 2026."
+    assert (result.prompt_tokens, result.completion_tokens) == (120, 9)
+
+
+def test_complete_with_non_llama_answer_is_llm_unavailable(monkeypatch):
+    from app.llm.base import LLMUnavailable
+
+    monkeypatch.setattr("app.llm.local_llama.httpx.AsyncClient", lambda **kwargs: _HtmlClient())
+    provider = LocalLlamaProvider(base_url="http://127.0.0.1:8081", model_name="m", timeout_s=5.0)
+    try:
+        _run(provider.complete("x"))
+    except LLMUnavailable:
+        pass
+    else:
+        raise AssertionError("expected LLMUnavailable")

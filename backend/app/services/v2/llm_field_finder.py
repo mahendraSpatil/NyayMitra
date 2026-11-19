@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from ...config import settings
 from ...llm.base import LLMProvider
+from ...llm.prompts import alpaca_prompt
 from ..field_extraction import FieldCandidate, ground_suggestion
 
 FINDER_SYSTEM = """You find key facts in an Indian criminal case document.
@@ -54,14 +55,22 @@ async def find_more_facts(
 ) -> FinderResult:
     limit = settings.max_excerpt_chars
     found = "\n".join(f"- {line}" for line in already_found) or "- (nothing yet)"
-    messages = [
-        {"role": "system", "content": FINDER_SYSTEM},
-        {"role": "user", "content": f"ALREADY FOUND:\n{found}\n\nDOCUMENT:\n{text[:limit]}"},
-    ]
-    if settings.llm_merge_system:
-        messages = [{"role": "user", "content": f"{FINDER_SYSTEM}\n\n{messages[1]['content']}"}]
-
-    result = await llm.generate(messages, max_tokens=settings.llm_max_tokens, temperature=0.0)
+    body = f"ALREADY FOUND:\n{found}\n\nDOCUMENT:\n{text[:limit]}"
+    if settings.llm_prompt_format == "alpaca":
+        result = await llm.complete(
+            alpaca_prompt(FINDER_SYSTEM, body),
+            max_tokens=settings.llm_max_tokens,
+            temperature=0.0,
+            stop=settings.llm_alpaca_stop,
+        )
+    else:
+        messages = [
+            {"role": "system", "content": FINDER_SYSTEM},
+            {"role": "user", "content": body},
+        ]
+        if settings.llm_merge_system:
+            messages = [{"role": "user", "content": f"{FINDER_SYSTEM}\n\n{body}"}]
+        result = await llm.generate(messages, max_tokens=settings.llm_max_tokens, temperature=0.0)
     items = _parse_reply(result.text)
     if items is None:
         return FinderResult([], 0, 0, True, result.model)

@@ -38,5 +38,22 @@ class LLMProvider(ABC):
         temperature: float = 0.2,
     ) -> LLMResult: ...
 
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 400,
+        temperature: float = 0.2,
+        stop: list[str] | None = None,
+    ) -> LLMResult:
+        """A raw, pre-formatted prompt (e.g. Alpaca) with no chat template
+        applied. Providers that can send raw text (LocalLlamaProvider)
+        override this; the default routes it through generate() as a single
+        user message, which is what test fakes and chat-only providers get.
+        """
+        return await self.generate(
+            [{"role": "user", "content": prompt}], max_tokens=max_tokens, temperature=temperature
+        )
+
     @abstractmethod
     async def health(self) -> bool: ...

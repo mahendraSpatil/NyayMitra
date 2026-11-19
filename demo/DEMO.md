@@ -23,6 +23,23 @@ demo, e.g. from `D:\nyaymitra\ocr_test_docs\`:
 
 ## Every demo: start the server
 
+**Easiest:** double-click `D:\EDI_5\demo\START_NYAYMITRA.cmd` (stop with
+`STOP_NYAYMITRA.cmd`). It uses the **v2** model, `D:\models\nyaymitra-v2.gguf`,
+from Vedant's Drive folder `nyaymitra-v2-gguf`. To run the older September
+model instead: `start_demo.ps1 -Model demo`. The script starts llama-server
+with the right file and the backend with the matching prompt format, and
+switches models if the wrong one is already loaded.
+
+Other one-click tools in this folder (results go to `demo\.state\`):
+
+| File | Does |
+|---|---|
+| `run_backend_tests.cmd` | Starts Postgres, migrates, runs all backend tests -> `pytest.log` |
+| `run_e2e_phone_test.cmd` | Full phone-path test through the public address -> `e2e.log` |
+| `run_compare_prompts.cmd` | Asks v2 ten questions with two Alpaca layouts -> `compare.json` |
+
+Or from PowerShell:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File D:\EDI_5\demo\start_demo.ps1
 ```

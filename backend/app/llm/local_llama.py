@@ -127,6 +127,60 @@ class LocalLlamaProvider(LLMProvider):
             completion_tokens=usage.get("completion_tokens"),
         )
 
+    async def complete(
+        self,
+        prompt: str,
+        *,
+        max_tokens: int = 400,
+        temperature: float = 0.2,
+        stop: list[str] | None = None,
+    ) -> LLMResult:
+        """llama-server's native /completion endpoint: the prompt goes in
+        exactly as written, with no chat template. Required for models
+        trained on a raw format (nyaymitra-v2: Alpaca) whose GGUF carries no
+        chat template — /v1/chat/completions would wrap the text in
+        llama-server's default (ChatML-like) template, a format the model
+        never saw, which is what made answers repeat the question and run
+        on. The BOS token is added by llama-server itself.
+        """
+        stop_list = stop if stop is not None else self.stop
+        payload = {
+            "prompt": prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+            "cache_prompt": True,
+        }
+        if stop_list:
+            payload["stop"] = stop_list
+
+        start = time.perf_counter()
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(f"{self.base_url}/completion", json=payload)
+                resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise LLMUnavailable(f"Local model at {self.base_url} failed: {exc}") from exc
+
+        try:
+            data = resp.json()
+            raw_text = data["content"]
+            if not isinstance(raw_text, str):
+                raise TypeError("content is not text")
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise LLMUnavailable(
+                f"{self.base_url} answered, but not like llama-server "
+                f"(content-type {resp.headers.get('content-type')!r}) — is another app on that port?"
+            ) from exc
+        text = _trim_runaway_output(raw_text, stop_list or [], model_name=self.model_name).strip()
+        return LLMResult(
+            text=text,
+            model=f"local:{self.model_name}",
+            latency_ms=int((time.perf_counter() - start) * 1000),
+            prompt_tokens=data.get("tokens_evaluated"),
+            completion_tokens=data.get("tokens_predicted"),
+        )
+
     async def health(self) -> bool:
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:

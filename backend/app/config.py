@@ -73,6 +73,20 @@ class Settings:
         [part.strip() for part in _llm_stop_raw.split(",") if part.strip()] if _llm_stop_raw else []
     )
     max_excerpt_chars = int(os.environ.get("MAX_EXCERPT_CHARS", "6000"))
+    # How prompts are sent to the local model. Must match how the model was
+    # trained (see Vedant's manifest.json for each GGUF):
+    #   "alpaca" - nyaymitra-v2 (and later): raw "### Instruction / ### Input /
+    #              ### Response" prompt to llama-server's /completion.
+    #   "chat"   - the older nyaymitra-demo.gguf: /v1/chat/completions.
+    llm_prompt_format = os.environ.get("LLM_PROMPT_FORMAT", "alpaca").lower()
+    # Prepend the standard Alpaca preamble ("Below is an instruction that
+    # describes a task, paired with an input...") — v2's manifest says no
+    # system prompt, so off by default.
+    llm_alpaca_preamble = os.environ.get("LLM_ALPACA_PREAMBLE", "false").lower() == "true"
+    # Stops for alpaca mode: end-of-sequence plus the start of a new
+    # Alpaca turn (the model inventing a follow-up instruction).
+    _alpaca_stop_raw = os.environ.get("LLM_ALPACA_STOP", "</s>,### Instruction,### Input,### Response")
+    llm_alpaca_stop = [part.strip() for part in _alpaca_stop_raw.split(",") if part.strip()]
     # OCR for scanned PDFs (app/services/ocr/). Printed/typed scans only —
     # handwriting is out of scope and is expected to come back low
     # confidence. Tesseract and poppler are separate native installs, not

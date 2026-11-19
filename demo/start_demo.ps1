@@ -9,12 +9,17 @@
   Optional:
     -NoAI                      skip llama-server (chat will say AI offline)
     -NoWatch                   exit after starting (no automatic tunnel repair)
+    -Model v2|demo             which AI model (default v2; demo = the older Sept model)
     -LlamaExe / -ModelPath     if your files live elsewhere
 #>
 param(
   [switch]$NoAI,
   [string]$LlamaExe  = "D:\tools\llama\llama-server.exe",
-  [string]$ModelPath = "D:\models\nyaymitra-demo.gguf",
+  # v2 = nyaymitra-v2.gguf (Alpaca prompts); demo = nyaymitra-demo.gguf
+  # (chat prompts). The backend is started with the matching format.
+  [ValidateSet("v2", "demo")]
+  [string]$Model     = "v2",
+  [string]$ModelPath = "",
   # Not 8080: another project's Adminer container uses 8080 on this laptop.
   # Must match LLM_BASE_URL in backend\.env.
   [int]$LlamaPort    = 8081,
@@ -98,9 +103,38 @@ if ($rc -ne 0) { Fail "docker compose up failed (see above)." }
 Wait-Port 5433 60 "Postgres" | Out-Null
 
 # --------------------------------------------------------------- 2. AI model
+$ModelFormat = @{ v2 = "alpaca"; demo = "chat" }[$Model]
+$ModelName   = @{ v2 = "nyaymitra-v2"; demo = "nyaymitra-demo" }[$Model]
+if (-not $ModelPath) { $ModelPath = "D:\models\$ModelName.gguf" }
+
+# Which model file the running llama-server has loaded (or $null).
+function Get-LoadedModel($port) {
+  try { return [string](Invoke-RestMethod -Uri "http://127.0.0.1:$port/v1/models" -TimeoutSec 5).data[0].id } catch { return $null }
+}
+
+# Stops whatever process listens on $port (only called after confirming
+# it is llama-server / our backend).
+function Stop-PortOwner($port) {
+  try {
+    $owners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop | Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($o in $owners) { taskkill /PID $o /T /F *> $null }
+    for ($i = 0; $i -lt 20 -and (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
+  } catch {}
+}
+
 if (-not $NoAI) {
   if (Test-Llama $LlamaPort) {
-    Say "llama-server already running on $LlamaPort."
+    $loaded = Get-LoadedModel $LlamaPort
+    $wanted = [System.IO.Path]::GetFileName($ModelPath)
+    if ($loaded -and ([System.IO.Path]::GetFileName($loaded) -ne $wanted)) {
+      Say "llama-server has $([System.IO.Path]::GetFileName($loaded)) loaded; switching to $wanted..." "Yellow"
+      Stop-PortOwner $LlamaPort
+    } else {
+      Say "llama-server already running on $LlamaPort with $wanted."
+    }
+  }
+  if (Test-Llama $LlamaPort) {
+    # still running with the right model
   } elseif (Test-Port $LlamaPort) {
     Fail "Port $LlamaPort is used by another program, not llama-server. Stop it, or pass -LlamaPort <free port> and set LLM_BASE_URL in backend\.env to match."
   } else {
@@ -127,20 +161,25 @@ $rc = Invoke-Native { & $py -m alembic upgrade head 2>&1 | Out-Host }
 if ($rc -ne 0) { Pop-Location; Fail "alembic upgrade failed (see above)." }
 Pop-Location
 
+# Always (re)start the backend so it runs the current code with the
+# prompt format that matches the model loaded above.
 if (Test-Port 8000) {
-  Say "Backend already running on 8000."
-} else {
-  Say "Starting backend (uvicorn on 127.0.0.1:8000)..."
-  $p = Start-Process -FilePath "powershell" -PassThru -WorkingDirectory $Backend -ArgumentList @(
-    "-NoExit", "-Command",
-    "`$host.UI.RawUI.WindowTitle='NyayMitra backend'; & '$py' -m uvicorn app.main:app --host 127.0.0.1 --port 8000")
-  Save-Pid "backend" $p
-  Wait-Port 8000 60 "Backend" | Out-Null
+  $isOurs = $false
+  try { $isOurs = ((Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 5).status -eq "ok") } catch {}
+  if (-not $isOurs) { Fail "Port 8000 is used by another program, not the NyayMitra backend. Stop it and re-run." }
+  Say "Restarting the backend..."
+  Stop-PortOwner 8000
 }
+Say "Starting backend (uvicorn on 127.0.0.1:8000, model $ModelName, $ModelFormat prompts)..."
+$p = Start-Process -FilePath "powershell" -PassThru -WorkingDirectory $Backend -ArgumentList @(
+  "-NoExit", "-Command",
+  "`$host.UI.RawUI.WindowTitle='NyayMitra backend'; `$env:LLM_PROMPT_FORMAT='$ModelFormat'; `$env:LLM_MODEL_NAME='$ModelName'; `$env:LLM_BASE_URL='http://127.0.0.1:$LlamaPort'; & '$py' -m uvicorn app.main:app --host 127.0.0.1 --port 8000")
+Save-Pid "backend" $p
+Wait-Port 8000 60 "Backend" | Out-Null
 
 try {
   $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 10
-  Say ("Backend healthy. AI online: " + $health.llm) "Green"
+  Say ("Backend healthy. AI online: " + $health.llm + " (" + $health.llmModel + ", " + $health.llmPromptFormat + " prompts)") "Green"
 } catch { Fail "Backend is up but /health failed: $_" }
 
 # ------------------------------------------------------------------- 4. Tunnel

@@ -102,3 +102,39 @@ def build_messages(
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
+
+
+ALPACA_PREAMBLE = (
+    "Below is an instruction that describes a task, paired with an input that "
+    "provides further context. Write a response that appropriately completes the request."
+)
+
+
+def alpaca_prompt(instruction: str, input_text: str = "", *, preamble: bool | None = None) -> str:
+    """The exact Alpaca layout nyaymitra-v2 was trained on (Vedant's
+    manifest: "### Instruction / ### Input / ### Response", no system
+    prompt, stop at </s>). The model writes the response after the final
+    "### Response:" line. The BOS token is added by llama-server."""
+    use_preamble = settings.llm_alpaca_preamble if preamble is None else preamble
+    parts = [ALPACA_PREAMBLE] if use_preamble else []
+    parts.append(f"### Instruction:\n{instruction.strip()}")
+    if input_text.strip():
+        parts.append(f"### Input:\n{input_text.strip()}")
+    parts.append("### Response:\n")
+    return "\n\n".join(parts)
+
+
+def build_alpaca_prompt(
+    case_details: dict, excerpt: str, statute_context: str, question: str
+) -> str:
+    """Same content as build_messages(), laid out the way the training data
+    was: the task (rules + the family's question) as the Instruction, the
+    case material as the Input."""
+    instruction = f"{SYSTEM_PROMPT}\n\nQuestion from the family: {question.strip()}"
+    input_text = (
+        f"CASE DETAILS:\n{json.dumps(case_details, ensure_ascii=False, indent=2, default=str)}\n\n"
+        f"DOCUMENT EXCERPT:\n"
+        f"{excerpt or 'No case documents with extracted text were found for this case.'}\n\n"
+        f"RELEVANT LAW:\n{statute_context or 'None provided.'}"
+    )
+    return alpaca_prompt(instruction, input_text)

@@ -18,7 +18,7 @@ from dataclasses import replace
 
 from ...config import settings
 from ...llm.base import LLMProvider, LLMResult
-from ...llm.prompts import build_messages, select_excerpt
+from ...llm.prompts import build_alpaca_prompt, build_messages, select_excerpt
 from .case_document_context import DocumentContext
 
 
@@ -41,12 +41,19 @@ async def generate_draft(
     # statute_kb exist (NyayMitra.md's AI pipeline) — there is nothing
     # real to put there yet, and a fabricated one would risk looking
     # like law-grounded context that was never actually checked.
-    messages = build_messages(case_details, excerpt, "", question)
-    result = await llm.generate(
-        messages,
-        max_tokens=settings.llm_max_tokens,
-        temperature=settings.llm_temperature,
-    )
+    if settings.llm_prompt_format == "alpaca":
+        result = await llm.complete(
+            build_alpaca_prompt(case_details, excerpt, "", question),
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+            stop=settings.llm_alpaca_stop,
+        )
+    else:
+        result = await llm.generate(
+            build_messages(case_details, excerpt, "", question),
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+        )
     return replace(result, text=strip_echoed_question(result.text, question))
 
 
