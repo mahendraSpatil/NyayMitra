@@ -104,7 +104,7 @@ if (-not $dockerOk) {
 
 Say "Starting Postgres (nyaymitra-postgres on 5433)..."
 Push-Location $Repo
-$rc = Invoke-Native { docker compose up -d 2>&1 | Out-Host }
+$rc = Invoke-Native { docker compose up -d 2>&1 | ForEach-Object { "$_" } | Out-Host }
 Pop-Location
 if ($rc -ne 0) { Fail "docker compose up failed (see above)." }
 Wait-Port 5433 60 "Postgres" | Out-Null
@@ -164,7 +164,7 @@ if (-not (Test-Path $py)) { Fail "Backend venv not found at $py. Create it (READ
 
 Say "Applying database migrations..."
 Push-Location $Backend
-$rc = Invoke-Native { & $py -m alembic upgrade head 2>&1 | Out-Host }
+$rc = Invoke-Native { & $py -m alembic upgrade head 2>&1 | ForEach-Object { "$_" } | Out-Host }
 if ($rc -ne 0) { Pop-Location; Fail "alembic upgrade failed (see above)." }
 Pop-Location
 
@@ -202,7 +202,7 @@ if (-not $cf) {
 }
 if (-not $cf) {
   Say "Installing cloudflared (one time)..." "Yellow"
-  Invoke-Native { winget install -e --id Cloudflare.cloudflared --accept-package-agreements --accept-source-agreements 2>&1 | Out-Host } | Out-Null
+  Invoke-Native { winget install -e --id Cloudflare.cloudflared --accept-package-agreements --accept-source-agreements 2>&1 | ForEach-Object { "$_" } | Out-Host } | Out-Null
   foreach ($c in $CfCandidates) {
     if (Test-Path $c) { $cf = $c; break }
   }
@@ -253,8 +253,13 @@ function Test-Internet {
 # Starts a fresh quick tunnel and returns its https address (or $null).
 function Start-Tunnel {
   Get-Process cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-  $log = Join-Path $State "tunnel.log"
-  if (Test-Path $log) { Remove-Item $log -Force -ErrorAction SilentlyContinue }
+  # A new log file per tunnel: right after Stop-Process the old log can
+  # still be locked, so deleting it fails silently and the old (dead)
+  # address in it was read and published again.
+  Start-Sleep -Milliseconds 500
+  Get-ChildItem $State -Filter "tunnel*.log" -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+  $log = Join-Path $State ("tunnel-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
   # cloudflared's own --logfile (not stderr redirection): the redirected
   # file stays locked while the process runs, cloudflared's log does not.
   $p = Start-Process -FilePath $cf -PassThru -WindowStyle Hidden -ArgumentList @(
@@ -269,8 +274,9 @@ function Start-Tunnel {
       $sr = New-Object System.IO.StreamReader($fs)
       $text = $sr.ReadToEnd()
       $sr.Close()
-      $m = [regex]::Match($text, "https://[a-z0-9-]+\.trycloudflare\.com")
-      if ($m.Success) { return $m.Value }
+      # Last match: the address this cloudflared was given.
+      $all = [regex]::Matches($text, "https://[a-z0-9-]+\.trycloudflare\.com")
+      if ($all.Count -gt 0) { return $all[$all.Count - 1].Value }
     } catch {}
   }
   return $null
@@ -280,7 +286,7 @@ function Start-Tunnel {
 function Open-AndPublish {
   Say "Opening a public HTTPS tunnel (Cloudflare quick tunnel)..."
   $url = Start-Tunnel
-  if (-not $url) { Say "Tunnel did not report an address (see .state\tunnel.log)." "Yellow"; return $null }
+  if (-not $url) { Say "Tunnel did not report an address (see .state\tunnel-*.log)." "Yellow"; return $null }
   Set-Content -Path (Join-Path $State "url.txt") -Value $url -NoNewline
   for ($i = 0; $i -lt 30 -and -not (Test-Public $url); $i++) { Start-Sleep -Seconds 2 }
   if (Publish-ServerUrl $url) {
