@@ -24,7 +24,8 @@ class CaseEvent {
     return CaseEvent(
       id: json['id'] as String,
       title: json['title'] as String? ?? '',
-      date: rawDate == null ? null : DateTime.tryParse(rawDate),
+      // UTC from the API; local so the day shown is the day that was picked.
+      date: rawDate == null ? null : DateTime.tryParse(rawDate)?.toLocal(),
       eventType: json['eventType'] as String? ?? 'other',
       done: json['done'] as bool? ?? false,
     );

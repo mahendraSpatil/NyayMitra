@@ -13,9 +13,11 @@ CaseStageTone _stageToneFromString(String? value) {
 }
 
 DateTime? _dateFromValue(dynamic value) {
-  if (value is DateTime) return value;
+  if (value is DateTime) return value.toLocal();
   // The API encodes datetimes as ISO 8601 strings.
-  if (value is String) return DateTime.tryParse(value);
+  // ...in UTC. Show them in the phone's own time zone: a hearing picked
+  // as 26 Nov in India is stored as 25 Nov 18:30 UTC and must read 26 Nov.
+  if (value is String) return DateTime.tryParse(value)?.toLocal();
   return null;
 }
 

@@ -36,7 +36,7 @@ class InviteService {
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return GeneratedInvite(
       code: json['code'] as String,
-      expiresAt: DateTime.parse(json['expiresAt'] as String),
+      expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
     );
   }
 

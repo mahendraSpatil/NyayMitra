@@ -58,7 +58,7 @@ class Task {
       completed: json['completed'] as bool? ?? false,
       completedAt: completedAtValue == null
           ? null
-          : DateTime.tryParse(completedAtValue),
+          : DateTime.tryParse(completedAtValue)?.toLocal(),
     );
   }
 }

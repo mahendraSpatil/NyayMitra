@@ -144,7 +144,7 @@ class CaseDocument {
       uploadedBy: json['uploadedBy'] as String?,
       uploadedAt: uploadedAtValue == null
           ? null
-          : DateTime.tryParse(uploadedAtValue),
+          : DateTime.tryParse(uploadedAtValue)?.toLocal(),
       ocrStatus: json['ocrStatus'] as String?,
       rawText: json['rawText'] as String?,
       textSource: json['textSource'] as String? ?? 'none',

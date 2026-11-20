@@ -24,7 +24,8 @@ class Hearing {
     final rawDate = json['date'] as String?;
     return Hearing(
       id: json['id'] as String,
-      date: rawDate == null ? null : DateTime.tryParse(rawDate),
+      // UTC from the API; local so the day shown is the day that was picked.
+      date: rawDate == null ? null : DateTime.tryParse(rawDate)?.toLocal(),
       court: json['court'] as String? ?? '',
       purpose: json['purpose'] as String? ?? '',
       status: json['status'] as String? ?? 'scheduled',
