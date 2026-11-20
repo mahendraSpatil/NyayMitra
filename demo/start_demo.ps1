@@ -35,6 +35,13 @@ $Backend = Join-Path $Repo "backend"
 $State   = Join-Path $PSScriptRoot ".state"
 New-Item -ItemType Directory -Force -Path $State | Out-Null
 
+# Only one launcher may run: an older window's watchdog would keep
+# "repairing" its own (dead) tunnel and kill this one's. Stop it first.
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" -ErrorAction SilentlyContinue |
+  Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*start_demo.ps1*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Set-Content -Path (Join-Path $State "watch.pid") -Value $PID
+
 function Say($msg, $color = "Cyan") { Write-Host "==> $msg" -ForegroundColor $color }
 function Fail($msg) { Write-Host "XX  $msg" -ForegroundColor Red; exit 1 }
 
@@ -311,6 +318,12 @@ try {
 $fails = 0
 while ($true) {
   Start-Sleep -Seconds 30
+  # Another launcher took over (it rewrote watch.pid): leave the tunnel to it.
+  $owner = (Get-Content (Join-Path $State "watch.pid") -ErrorAction SilentlyContinue | Select-Object -First 1)
+  if ($owner -and "$owner".Trim() -ne "$PID") {
+    Write-Host "Another NyayMitra launcher is running - this window stops watching." -ForegroundColor Yellow
+    exit 0
+  }
   $tunnelProc = Get-Process cloudflared -ErrorAction SilentlyContinue
   if ($tunnelProc -and (Test-Public $url)) { $fails = 0; continue }
   $fails++

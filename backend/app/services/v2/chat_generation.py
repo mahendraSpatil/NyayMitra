@@ -14,11 +14,13 @@ overflow is shared by every route in the app) for as long as a chat
 reply is in flight.
 """
 
+import re
 from dataclasses import replace
 
 from ...config import settings
 from ...llm.base import LLMProvider, LLMResult
 from ...llm.prompts import build_alpaca_prompt, build_messages, select_excerpt
+from ...llm.statute_kb import statute_context
 from .case_document_context import DocumentContext
 
 
@@ -37,24 +39,24 @@ async def generate_draft(
             "characters. If a number, date or section looks unclear, say it is unclear "
             "and ask the lawyer to check the original.\n\n" + excerpt
         )
-    # statute_context ("" here) stays empty until retrieval_service /
-    # statute_kb exist (NyayMitra.md's AI pipeline) — there is nothing
-    # real to put there yet, and a fabricated one would risk looking
-    # like law-grounded context that was never actually checked.
+    # RELEVANT LAW: short summaries from app/llm/statute_kb.py picked by
+    # keyword match on the question ("" when nothing matches), so law
+    # answers come from checked text instead of the model's memory.
+    law = statute_context(question) if settings.statute_kb_enabled else ""
     if settings.llm_prompt_format == "alpaca":
         result = await llm.complete(
-            build_alpaca_prompt(case_details, excerpt, "", question),
+            build_alpaca_prompt(case_details, excerpt, law, question),
             max_tokens=settings.llm_max_tokens,
             temperature=settings.llm_temperature,
             stop=settings.llm_alpaca_stop,
         )
     else:
         result = await llm.generate(
-            build_messages(case_details, excerpt, "", question),
+            build_messages(case_details, excerpt, law, question),
             max_tokens=settings.llm_max_tokens,
             temperature=settings.llm_temperature,
         )
-    return replace(result, text=strip_echoed_question(result.text, question))
+    return replace(result, text=drop_assumed_relation(strip_echoed_question(result.text, question)))
 
 
 def strip_echoed_question(text: str, question: str) -> str:
@@ -68,3 +70,20 @@ def strip_echoed_question(text: str, question: str) -> str:
     if out.lower().startswith("answer:"):
         out = out[len("answer:"):].lstrip()
     return out or text
+
+
+_RELATIONS = r"(?:husband|wife|son|daughter|brother|sister|father|mother|relative)"
+_NAME = r"[A-Z][\w.'-]*(?: [A-Z][\w.'-]*)*"
+
+
+def drop_assumed_relation(text: str) -> str:
+    """The model was trained on answers addressed to a wife ("your husband,
+    Ramesh Kale, ...") and keeps assuming that relation even when told not
+    to. The app does not know who is asking, so drop the guess:
+    "your husband, Ramesh Kale," / "your husband Ramesh Kale" -> "Ramesh Kale",
+    and a bare "your husband" -> "the accused"."""
+    out = re.sub(rf"\b[Yy]our {_RELATIONS},? ({_NAME}),", r"\1", text)
+    out = re.sub(rf"\b[Yy]our {_RELATIONS},? ({_NAME})", r"\1", out)
+    out = re.sub(rf"\bYour {_RELATIONS}(?:'s)?\b", lambda m: "The accused" + ("'s" if m.group(0).endswith("'s") else ""), out)
+    out = re.sub(rf"\byour {_RELATIONS}(?:'s)?\b", lambda m: "the accused" + ("'s" if m.group(0).endswith("'s") else ""), out)
+    return out

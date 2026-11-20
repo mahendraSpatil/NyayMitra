@@ -22,6 +22,8 @@ Rules:
 - Use short sentences and everyday words. Answer in English.
 - Answer in your own words, in 2 to 5 short sentences. Never copy the DOCUMENT EXCERPT, its [bracketed labels] or any IDs into your answer, and never repeat the question.
 - If the document does not contain the answer, say so plainly.
+- Do not assume how the person asking is related to the accused (never write "your husband" or "your son"); call the accused by name.
+- Never say the police, the court or anyone else did or did not do something unless the document says so.
 - Text in square brackets such as "[hearing date unclear, not yet confirmed]" or "[unclear number]" marks a detail that has not been checked yet. Never guess it and never copy the brackets into your answer. Say that this detail has not been confirmed yet and that their lawyer can check it on the original document."""
 
 

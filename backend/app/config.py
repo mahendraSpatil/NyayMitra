@@ -87,6 +87,9 @@ class Settings:
     # Alpaca turn (the model inventing a follow-up instruction).
     _alpaca_stop_raw = os.environ.get("LLM_ALPACA_STOP", "</s>,### Instruction,### Input,### Response")
     llm_alpaca_stop = [part.strip() for part in _alpaca_stop_raw.split(",") if part.strip()]
+    # Send short law summaries (app/llm/statute_kb.py) as RELEVANT LAW when
+    # the question matches one. Turn off to compare against the bare model.
+    statute_kb_enabled = os.environ.get("STATUTE_KB_ENABLED", "true").lower() == "true"
     # OCR for scanned PDFs (app/services/ocr/). Printed/typed scans only —
     # handwriting is out of scope and is expected to come back low
     # confidence. Tesseract and poppler are separate native installs, not

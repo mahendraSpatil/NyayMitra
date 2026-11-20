@@ -37,6 +37,23 @@ Other one-click tools in this folder (results go to `demo\.state\`):
 | `run_backend_tests.cmd` | Starts Postgres, migrates, runs all backend tests -> `pytest.log` |
 | `run_e2e_phone_test.cmd` | Full phone-path test through the public address -> `e2e.log` |
 | `run_compare_prompts.cmd` | Asks v2 ten questions with two Alpaca layouts -> `compare.json` |
+| `run_law_check.cmd` | Asks v2 law questions with and without the law summaries -> `law_check.log` |
+| `install_v2_model.cmd` | Checks the SHA-256 of `Downloads\nyaymitra-v2.gguf` and moves it to `D:\models` -> `install_model.log` |
+
+Starting again while it is already running is fine: the new window stops
+the old one first (otherwise two watchdogs fight over the tunnel and one
+publishes a dead address). `STOP_NYAYMITRA.cmd` stops the window too.
+
+### Law answers
+
+The model is not trusted to quote law from memory (tested: it got Section
+436A CrPC wrong). For law questions the backend adds short summaries from
+`backend/app/llm/statute_kb.py` (436A/479 BNSS, default bail, 24-hour
+production, grounds of arrest, bail, legal aid, meeting a lawyer) as
+RELEVANT LAW, picked by keywords in the question. Questions about the
+case's own facts get no law text. **Before any real use, have the guide or
+a lawyer check every summary against the Acts** and fill in
+`KB_REVIEWED_BY`. `STATUTE_KB_ENABLED=false` in `backend/.env` turns it off.
 
 Or from PowerShell:
 
@@ -75,7 +92,9 @@ When done: close the window, then
    reading is kept, and who corrected it is recorded.
 5. **Ask the chatbot**: "When was he arrested and when is the next hearing?"
    -> it uses confirmed facts and says unconfirmed ones aren't checked yet
-   instead of guessing. (Takes ~40 s on the laptop.)
+   instead of guessing. (Takes ~10-25 s on the laptop with v2.)
+   Then ask "What does Section 436A CrPC say?" or "We cannot afford a
+   lawyer, what can we do?" -> answered from the law summaries.
 6. **Family** account on the same case -> sees the documents and facts but
    can't confirm them (only advocate/NGO/case owner can).
 

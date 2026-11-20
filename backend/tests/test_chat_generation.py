@@ -25,3 +25,13 @@ def test_normal_answer_untouched():
 
 def test_never_returns_empty():
     assert strip_echoed_question(Q, Q) == Q
+
+
+def test_drop_assumed_relation():
+    from app.services.v2.chat_generation import drop_assumed_relation as d
+    assert d("The document says that your husband, Ramesh Kale, was arrested.") == "The document says that Ramesh Kale was arrested."
+    assert d("Your husband Ramesh Kale is in jail.") == "Ramesh Kale is in jail."
+    assert d("Your husband is in jail since March.") == "The accused is in jail since March."
+    assert d("We will check your son's next hearing.") == "We will check the accused's next hearing."
+    assert d("Ask your lawyer.") == "Ask your lawyer."
+    assert d("He is the husband of the complainant.") == "He is the husband of the complainant."
