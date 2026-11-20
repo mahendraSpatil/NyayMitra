@@ -38,6 +38,7 @@ Other one-click tools in this folder (results go to `demo\.state\`):
 | `run_e2e_phone_test.cmd` | Full phone-path test through the public address -> `e2e.log` |
 | `run_compare_prompts.cmd` | Asks v2 ten questions with two Alpaca layouts -> `compare.json` |
 | `run_law_check.cmd` | Asks v2 law questions with and without the law summaries -> `law_check.log` |
+| `build_web.cmd` | Builds the committed app (HEAD) for the web -> `.state\webclient\client\build\web` (used for the screen recording) |
 | `install_v2_model.cmd` | Checks the SHA-256 of `Downloads\nyaymitra-v2.gguf` and moves it to `D:\models` -> `install_model.log` |
 
 Starting again while it is already running is fine: the new window stops
