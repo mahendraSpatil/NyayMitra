@@ -1,11 +1,14 @@
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...db.base import get_db
-from ...db.models import Case
+from ...config import settings
+from ...db.models import Case, Hearing
 from ...dependencies import CurrentUser, require_case_member_from_body
 from ...llm.base import LLMProvider, LLMUnavailable
 from ...llm.factory import get_llm
@@ -19,6 +22,50 @@ from ...services.v2.document_fields import case_facts
 from ...services.v2.verification import verify_draft
 
 router = APIRouter()
+
+# Dates are stored in UTC; families read them as Indian dates (a hearing
+# on 26 Nov is 25 Nov 18:30 UTC). India has no daylight saving, so a
+# fixed offset is exact.
+_LOCAL_TZ = timezone(timedelta(minutes=settings.display_utc_offset_minutes))
+
+
+def _day(dt: datetime) -> str:
+    return dt.astimezone(_LOCAL_TZ).strftime("%d %B %Y").lstrip("0")
+
+
+def _describe_hearing(h: Hearing) -> str:
+    parts = [_day(h.date)]
+    if h.court:
+        parts.append(h.court)
+    if h.purpose:
+        parts.append(h.purpose)
+    text = ", ".join(parts)
+    return text if h.status == "scheduled" else f"{text} ({h.status})"
+
+
+def hearing_details(db: Session, case_id: uuid.UUID) -> dict:
+    """The hearing schedule the advocate keeps in the app. It is newer than
+    any hearing date printed in an uploaded document (an FIR's "next
+    hearing" is long out of date by the time the family asks)."""
+    hearings = db.scalars(
+        select(Hearing).where(Hearing.case_id == case_id).order_by(Hearing.date.asc())
+    ).all()
+    now = datetime.now(timezone.utc)
+    upcoming = [h for h in hearings if h.status in ("scheduled", "adjourned") and h.date >= now - timedelta(hours=12)]
+    past = [h for h in hearings if h not in upcoming]
+    out: dict = {}
+    if upcoming:
+        out["nextHearing"] = _describe_hearing(upcoming[0])
+        if len(upcoming) > 1:
+            out["laterHearings"] = [_describe_hearing(h) for h in upcoming[1:4]]
+    if past:
+        out["pastHearings"] = [_describe_hearing(h) for h in past[-3:]]
+    if out:
+        out["hearingNote"] = (
+            "These hearing dates are from the advocate's case record and are the most up to date. "
+            "A hearing date printed in an older document may have changed."
+        )
+    return out
 
 # A bare greeting gets an instant, fixed reply instead of a ~40 s model
 # call that (seen live) answers "hi" by dumping the case documents back.
@@ -82,6 +129,7 @@ async def chat(
             "court": case.court,
             "stage": case.stage,
         }
+        case_details.update(hearing_details(db, case_id))
 
         documents, _truncated = fetch_case_document_context(db, case_id)
         cited_documents = [

@@ -296,3 +296,33 @@ def test_junk_scan_uploaded_under_an_old_gate_is_excluded_at_chat_time(
     finally:
         db.query(Document).filter(Document.case_id == case_id).delete()
         db.commit()
+
+
+def test_chat_gives_the_model_the_advocates_hearing_schedule(
+    client, auth_headers, make_case, accounts, fake_llm, db
+):
+    # The FIR's "next hearing" is old; the hearing the advocate entered in
+    # the app is the one the family needs. Seen live: without this the
+    # model answered with the FIR's date.
+    from datetime import datetime, timedelta, timezone
+    from app.db.models import Hearing
+    case_id = make_case(created_by=accounts["advocate"]["uid"], owner_type="advocate", undertrial_name="Hearing Person")
+    db.add(CaseMember(case_id=case_id, user_id=accounts["advocate"]["uid"], role="advocate", is_manager=True))
+    # Midnight IST on a future day = 18:30 UTC the day before.
+    day = (datetime.now(timezone.utc) + timedelta(days=6)).date()
+    when = datetime(day.year, day.month, day.day, tzinfo=timezone(timedelta(minutes=330)))
+    db.add(Hearing(case_id=case_id, date=when, court="Sessions Court, Pune", purpose="Bail hearing", status="scheduled"))
+    db.add(Hearing(case_id=case_id, date=when - timedelta(days=30), court="Sessions Court, Pune", purpose="Remand", status="completed"))
+    db.commit()
+
+    response = client.post(
+        "/api/v2/chat",
+        json={"message": "When is the next hearing?", "caseId": str(case_id)},
+        headers=auth_headers("advocate"),
+    )
+    assert response.status_code == 200, response.text
+    prompt = fake_llm.calls[0][-1]["content"]
+    expected = f"{day.day} {when.strftime('%B %Y')}, Sessions Court, Pune, Bail hearing"
+    assert expected in prompt  # shown as the Indian date that was picked
+    assert "nextHearing" in prompt and "most up to date" in prompt
+    assert "Remand (completed)" in prompt

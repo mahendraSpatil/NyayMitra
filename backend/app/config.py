@@ -90,6 +90,9 @@ class Settings:
     # Send short law summaries (app/llm/statute_kb.py) as RELEVANT LAW when
     # the question matches one. Turn off to compare against the bare model.
     statute_kb_enabled = os.environ.get("STATUTE_KB_ENABLED", "true").lower() == "true"
+    # Offset used when dates are written for people to read (chat answers).
+    # 330 = India (UTC+5:30, no daylight saving).
+    display_utc_offset_minutes = int(os.environ.get("DISPLAY_UTC_OFFSET_MINUTES", "330"))
     # OCR for scanned PDFs (app/services/ocr/). Printed/typed scans only —
     # handwriting is out of scope and is expected to come back low
     # confidence. Tesseract and poppler are separate native installs, not
