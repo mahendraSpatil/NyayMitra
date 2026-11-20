@@ -40,9 +40,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # Pinned to the version the app is built and tested with on the
+      # laptop: "latest stable" changed under us and broke the build.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.0
           cache: true
 
       - name: Flutter version
